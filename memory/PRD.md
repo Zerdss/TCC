@@ -47,3 +47,10 @@ Demo acadêmica em português para apresentar um protótipo de visão computacio
 - Overlay em canvas: malha facial (pontos), contornos dos olhos e boca, caixa do rosto e elipse-guia de enquadramento.
 - Badge de orientação em tempo real: "Rosto não detectado", "Aproxime-se", "Afaste-se", "Centralize o rosto", "Posicionamento ideal".
 - Correções: props (calibrationStep/earThreshold/callbacks) agora lidas via refs (evita closure obsoleta no loop de inferência); EAR/MAR formatados com 2 decimais e PERCLOS exibido em %.
+
+## Atualização — Responsividade (celular)
+- Header com wrap (nada mais estoura a largura em telas de 320 px).
+- Câmera: proporção 3:4 em telas estreitas e altura fixa 340 px em telas largas.
+- Cards de métricas da Home empilham em coluna (ícone + texto) abaixo de 480 px.
+- Cards EAR/MAR/PERCLOS: fonte escalável (adjustsFontSizeToFit), rótulo em 1 linha, ícone oculto abaixo de 360 px; PERCLOS agora normalizado (0-1) no gráfico.
+- Títulos H1/H2 e textos reduzem em telas pequenas; fórmulas na tela de explicação quebram em linhas.

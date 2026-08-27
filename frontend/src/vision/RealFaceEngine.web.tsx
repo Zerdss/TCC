@@ -80,10 +80,14 @@ export default function RealFaceEngine({ stream, calibrationStep, earThreshold, 
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
       if (!width || !height) return;
-      if (canvas.width !== width) canvas.width = width;
-      if (canvas.height !== height) canvas.height = height;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+      }
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
       const videoWidth = video.videoWidth || width;
       const videoHeight = video.videoHeight || height;
@@ -186,8 +190,8 @@ const styles = StyleSheet.create({
   engine: { ...StyleSheet.absoluteFillObject, backgroundColor: "#090D14" },
   video: { width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" } as any,
   canvas: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", transform: "scaleX(-1)" } as any,
-  guide: { position: "absolute", top: 10, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1, backgroundColor: "#090D14E6" },
+  guide: { position: "absolute", top: 10, left: 10, right: 10, alignSelf: "center", maxWidth: "94%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1, backgroundColor: "#090D14E6" },
   guideDot: { width: 7, height: 7, borderRadius: 7 },
-  guideText: { fontSize: 11, fontWeight: "800" },
+  guideText: { fontSize: 11, fontWeight: "800", flexShrink: 1 },
   error: { position: "absolute", bottom: 8, left: 8, right: 8, color: "#FCA5A5", backgroundColor: "#090D14DD", padding: 8, fontSize: 11 },
 });
