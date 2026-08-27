@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend mobile web flow tested at 390x844: home, camera start, all three calibration stages, live panel, explanation and return navigation passed; no runtime errors or horizontal document overflow detected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Painel de monitoramento status pill", "issue": "At 390px width the NORMAL pill is visibly clipped at the right edge because the long heading and status are forced into one row.", "testID": "missing", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Live fatigue alert", "issue": "During an extended 16-second observation the simulated alert notice never rendered. Code only sets ATENÇÃO (never ALERTA DE SONOLÊNCIA), and the random threshold makes the required warning nondeterministic.", "affected_testIDs": []}
+    ],
+    "design_issues": [
+      {"screen": "Painel de monitoramento", "issues": ["Status badge is clipped horizontally on the required 390x844 viewport."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_1.json"],
+  "action_items": ["Make the demo alert state deterministically testable/visible and implement the ALERTA DE SONOLÊNCIA level; ensure alert feedback is visibly reachable.", "Adjust panel header layout so heading and status badge wrap or stack within 390px.", "Add data-testid/testID attributes to all interactive and critical informational elements for regression automation."],
+  "critical_code_review_comments": ["index.tsx contains the full four-screen implementation in one file but is under 700 lines.", "MediaPipe/real EAR, MAR and PERCLOS processing is not implemented; metrics and landmarks are simulated, matching the documented backlog but not the requested real integration.", "No audio alert implementation was found; web vibration is explicitly skipped."],
+  "updated_files": ["/app/test_reports/iteration_1.json"],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "85%"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "Use https://fatigue-eye-tracker.preview.emergentagent.com at 390x844. Core navigation passed. Recheck header clipping and force/observe alert states after fixes.",
+  "rca_of_issue": "The panel header uses flexDirection row with justifyContent space-between while the heading text is wide; the status pill is laid out beyond the viewport. The effect's alert branch only assigns ATENÇÃO when ear < 0.25 or mar > 0.42, and the generated MAR range tops at 0.40, so MAR can never trigger; ALERTA DE SONOLÊNCIA is unreachable in current code."
+}

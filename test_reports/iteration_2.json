@@ -1,0 +1,24 @@
+{
+  "summary": "Frontend-only regression at 390x844 passed home privacy, three-step calibration, live panel, deterministic fatigue alert within 20 seconds, explanation/back navigation, required testIDs, and horizontal document overflow check.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Live fatigue alert banner", "issue": "Long alert copy is visibly clipped at the right edge in the 390px preview instead of wrapping fully inside the red banner.", "testID": "fatigue-alert", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "Demo camera label / JSX View children", "issue": "Browser console repeatedly reports 'Unexpected text node: . A text node cannot be a child of a <View>' during the flow, likely caused by whitespace between JSX children in camLabel."}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_2.json", "/app/test_reports/iteration_2_browser"],
+  "action_items": ["Make fatigue-alert text wrap within the banner at 390px (consider minWidth: 0 on alertText and verify parent sizing).", "Remove whitespace text nodes between React Native View children, especially the camera label JSX, and recheck browser console warnings."],
+  "critical_code_review_comments": ["Real FaceLandmarker/EAR/MAR/PERCLOS processing remains simulated, consistent with the documented backlog.", "No red screen or bundler failure occurred; supervisor Expo logs are clean apart from browser runtime warnings."],
+  "updated_files": ["/app/test_reports/iteration_2.json"],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "90%"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "At 390x844 the status badge now fits and ATENÇÃO plus fatigue-alert appear within 20 seconds. Recheck alert text wrapping and console warnings after fixes.",
+  "rca_of_issue": "The header wrap fix is effective. The alert bar renders but its flex child text retains an intrinsic width that exceeds the narrow row, producing visible clipping. The console warning is caused by a literal whitespace text node between JSX elements nested directly under a View (notably camLabel's Icon followed by a space before Text)."
+}

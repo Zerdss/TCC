@@ -1,0 +1,134 @@
+{
+  "app_name": "Detecção de Sonolência ao Volante (TCC Demo)",
+  "personality": "7 Dark-First Utility DARK",
+  "personality_one_liner": "Comando tático e automotivo de alta precisão para segurança de motoristas com telemetria em tempo real e monitoramento por visão computacional.",
+  "color": {
+    "surface": "#090D14",
+    "onSurface": "#F1F5F9",
+    "surfaceSecondary": "#121A26",
+    "onSurfaceSecondary": "#CBD5E1",
+    "surfaceTertiary": "#1B2738",
+    "onSurfaceTertiary": "#94A3B8",
+    "surfaceInverse": "#F8FAFC",
+    "onSurfaceInverse": "#0F172A",
+    "brand": "#F59E0B",
+    "brandPrimary": "#F59E0B",
+    "onBrandPrimary": "#090D14",
+    "brandSecondary": "#D97706",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#293548",
+    "onBrandTertiary": "#FCD34D",
+    "success": "#10B981",
+    "onSuccess": "#FFFFFF",
+    "warning": "#FBBF24",
+    "onWarning": "#090D14",
+    "error": "#EF4444",
+    "onError": "#FFFFFF",
+    "info": "#3B82F6",
+    "onInfo": "#FFFFFF",
+    "border": "#1E293B",
+    "borderStrong": "#334155",
+    "divider": "#152032"
+  },
+  "typography": {
+    "displayFontFamily": "BarlowCondensed",
+    "textFontFamily": "Satoshi",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Padronização tática e compacta para visibilidade imediata em ambientes veiculares.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 0,
+  "navigation": "stack_only",
+  "icon_set": "MaterialCommunityIcons",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [
+      "Manter superfícies sólidas e de alto contraste (Dark-First Utility) para máxima legibilidade sob condições de baixa luminosidade e em movimento."
+    ],
+    "dont's": [
+      "Evitar blur excessivo ou efeitos translúcidos que reduzam a nitidez de métricas críticas."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home / Hero",
+      "purpose": "Apresentação acadêmica do TCC com aviso de privacidade e gatilho para iniciar a demonstração interativa.",
+      "states": {
+        "loading": "Carregando módulos de visão computacional e verificando suporte à webcam...",
+        "empty": "Nenhum dispositivo de vídeo detectado. Conecte uma webcam para iniciar.",
+        "error": "Erro ao acessar a câmera. Verifique as permissões do navegador."
+      },
+      "layout": "Tela de boas-vindas com cabeçalho de TCC acadêmico, distintivo de processamento 100% local (sem envio de vídeo), resumo das métricas (EAR, MAR, PERCLOS) e botão fixo 'Iniciar Demonstração'."
+    },
+    {
+      "name": "Calibração",
+      "purpose": "Etapa guiada para definir limiares personalizados de EAR e MAR com o usuário.",
+      "states": {
+        "loading": "Calibrando malha facial...",
+        "empty": "Posicione seu rosto em frente à câmera.",
+        "error": "Falha na calibração. Tente novamente com mais iluminação."
+      },
+      "layout": "Passo a passo interativo (Olhos abertos -> Olhos fechados -> Bocejo de teste) com barra de progresso e feedback em tempo real."
+    },
+    {
+      "name": "Demo Principal",
+      "purpose": "Execução ao vivo da detecção de fadiga com stream de vídeo, malha facial simulada, gráficos deslizantes e sistema de alertas em 3 níveis.",
+      "states": {
+        "loading": "Inicializando MediaPipe Face Mesh...",
+        "empty": "Aguardando detecção facial...",
+        "error": "Perda de sinal da câmera."
+      },
+      "layout": "Visualização de câmera em destaque com overlay de landmarks, painel de telemetria em tempo real (EAR, MAR, PERCLOS em 60s), indicador de status (NORMAL, ATENÇÃO, ALERTA DE SONOLÊNCIA) e controles de áudio/vibração."
+    },
+    {
+      "name": "Seção Explicativa",
+      "purpose": "Documentação didática detalhando o fluxo técnico (Captura -> Landmarks -> Métricas EAR/MAR/PERCLOS -> Classificação -> Alerta).",
+      "states": {
+        "loading": "Carregando documentação técnica...",
+        "empty": "Nenhum conteúdo disponível.",
+        "error": "Erro ao carregar os dados explicativos."
+      },
+      "layout": "Cards estruturados por etapas do algoritmo com fórmulas matemáticas e justificativa para TCC em Ciência da Computação."
+    }
+  ],
+  "images": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1597386601945-8980df52c3dc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHxhdXRvbW90aXZlJTIwZGFzaGJvYXJkJTIwmlnaHQlMjBkcml2ZSUyMGh1ZCUyMHNwZWVkb21ldGVyfGVufDB8fHx8MTc4NzgwMzQ4MHww&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1597386601945-8980df52c3dc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHxhdXRvbW90aXZlJTIwZGFzaGJvYXJkJTIwmlnaHQlMjBkcml2ZSUyMGh1ZCUyMHNwZWVkb21ldGVyfGVufDB8fHx8MTc4NzgwMzQ4MHww&ixlib=rb-4.1.0&q=85",
+      "alt": "Painel automotivo noturno com HUD"
+    }
+  },
+  "instructions_to_main_agent": "Criar um app Expo estruturado com 4 telas principais em fluxo linear: Home/Hero com privacidade e aviso TCC, Calibração interativa, Demo Principal com simulação de webcam/face mesh e métricas em tempo real (EAR, MAR, PERCLOS) com status e alertas sonoros/visuais, e Seção Explicativa técnica. Utilizar Dark-First Utility com paleta tática (fundos escuros profundos e acentos em âmbar/vermelho/verde), sem roxo/azul-claro proibidos. Garantir que nenhum vídeo seja enviado a servidores externos."
+}
