@@ -1,0 +1,22 @@
+{
+  "summary": "Frontend-only regression passed at 390x844: home mounts without red screen, start reaches calibration, and no-webcam calibration stays blocked with no mock metrics or landmarks.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Real MediaPipe inference", "issue": "Not verifiable in this runner because no webcam is available. Expo logs still show intermittent Metro transform failures for @mediapipe/tasks-vision/vision_bundle.mjs dynamic import, although the public app mounts.", "affected_testIDs": ["vision-engine", "processing-fps"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_6_browser/calibration.png", "/app/test_reports/iteration_6.json"],
+  "action_items": ["Validate camera permission, local FaceLandmarker model loading, real landmarks, EAR/MAR, and 60-second PERCLOS on a webcam-capable browser.", "Investigate intermittent Metro vision_bundle.mjs transform warning if real-camera loading fails."],
+  "critical_code_review_comments": ["yarn tsc --noEmit passes.", "face_landmarker.task is present at frontend/public/models/face_landmarker.task (3,758,596 bytes).", "No upload/video-frame network path or decorative mock landmarks are present in the reviewed frontend code."],
+  "updated_files": ["/app/test_reports/iteration_6.json"],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "100% for executable no-webcam flows; real-camera inference not tested"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "At the public preview URL with 390x844, home and calibration rendered successfully. Clicking Iniciar Demonstração showed Aguardando leitura... indefinitely without webcam frames; no landmarks or mock metrics appeared.",
+  "rca_of_issue": "Iteration 5 red-screen cause is resolved: no StyleSheet mutation remains and the app mounts. Remaining uncertainty is environmental: this runner cannot grant webcam input, while Expo output retains intermittent dynamic MediaPipe bundle transform warnings."
+}

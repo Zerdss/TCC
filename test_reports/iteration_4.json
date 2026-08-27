@@ -1,0 +1,22 @@
+{
+  "summary": "Frontend-only regression completed at 390x844. Home and calibration load without the previous Metro import failure; model and WASM URLs return 200, and denied/no-camera testing correctly leaves calibration at zero progress.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "calibration/demo", "issues": ["Demo renders 18 deterministic landmark dots regardless of actual FaceLandmarker output; this can imply simulated detection when no face or camera stream exists."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_4_browser/home.png", "/app/test_reports/iteration_4_browser/calibration.png"],
+  "action_items": ["Render landmark overlays only from metrics.landmarks (or hide them when no real face is detected).", "Validate detectForVideo, numeric EAR/MAR, PERCLOS and FPS with a real permitted webcam/device; browser runner had no real camera."],
+  "critical_code_review_comments": ["The CDN ESM import workaround no longer causes a Metro build error in the live preview; TypeScript compilation passes.", "No frontend fetch/upload/XHR path for video or landmarks was found.", "Real camera inference and 60-second PERCLOS behavior remain unverified because the automation environment has no camera permission/device."],
+  "updated_files": ["/app/test_reports/iteration_4.json"],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "85% (home, denied-camera calibration, asset availability and build pass; real webcam inference unverified)"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "At 390x844, the preview loaded and clicking Iniciar Demonstração reached calibration without red screen or Metro errors. /models/face_landmarker.task and the pinned WASM CDN URL returned 200. With no camera, progress stayed at Analisando padrão facial and did not advance artificially.",
+  "rca_of_issue": "The prior package import failure is resolved by indirect browser loading of the pinned CDN vision_bundle.mjs. Remaining concern is in app/index.tsx: the static landmarks array is always rendered in Demo, independent of the real landmarks callback, so no-camera state can look like fabricated face detection."
+}

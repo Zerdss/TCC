@@ -1,0 +1,24 @@
+{
+  "summary": "Frontend-only regression at 390x844 found a blocking React Native web red screen on initial load. TypeScript and the local model asset pass, but the current landmark workaround crashes before home renders.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Index module initialization", "issue": "Expo web red screen: Cannot add property opacity, object is not extensible at Object.assign(styles.landmark, { opacity: 0 })", "testID": "", "priority": "CRITICAL"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "styles.landmark workaround", "issue": "StyleSheet.create returns a frozen/non-extensible style object on web; mutating it at module scope crashes the entire app."}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_5_browser/calibration.png", "/app/test_reports/iteration_5.json"],
+  "action_items": ["Remove the Object.assign mutation and hide the decorative landmarks through a non-mutating style/property or render condition.", "After fixing the red screen, rerun home/calibration no-camera checks and inspect Metro logs for the MediaPipe bundle parse failure."],
+  "critical_code_review_comments": ["yarn tsc --noEmit passes.", "face_landmarker.task exists and is 3,758,596 bytes.", "Expo logs contain intermittent Web Bundling failed errors for @mediapipe/tasks-vision/vision_bundle.mjs: Invalid call at import(t.toString()), although subsequent entry bundles can succeed.", "No fetch, XMLHttpRequest, axios, upload, or video-landmark upload path was found in frontend app/src code."],
+  "updated_files": ["/app/test_reports/iteration_5.json"],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "0% (initial red screen prevented flow validation)"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "At the public preview URL with 390x844, the app immediately shows Expo LogBox red screen before home. The stack points to app/index.tsx line 65 Object.assign(styles.landmark...). No webcam inference or no-camera calibration behavior could be retested in this iteration.",
+  "rca_of_issue": "The prior iteration hid decorative landmarks by mutating a StyleSheet.create result. On Expo web that style object is non-extensible, so Object.assign throws during module evaluation and prevents React from mounting. Replace mutation with a separate style object (for example opacity: 0 directly in the StyleSheet definition) or conditionally omit the layer."
+}

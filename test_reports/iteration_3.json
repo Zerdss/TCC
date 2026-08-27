@@ -1,0 +1,23 @@
+{
+  "summary": "Frontend preview and camera-start flow tested at 390x844. Home screen loads, but MediaPipe runtime bundling fails when camera is started, so real detection and calibration cannot run.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Iniciar Demonstração → calibração", "issue": "Metro fails transforming @mediapipe/tasks-vision/vision_bundle.mjs with Invalid call at import(t.toString()); engine never reaches running state, FPS stays 0.0 and real metrics/calibration samples never arrive.", "affected_testIDs": ["vision-engine", "processing-fps"]},
+      {"flow": "Camera permission unavailable / getUserMedia failure", "issue": "The UI advances to calibration with streamRef null and only shows a generic notice; calibration remains locked forever because no engine error/progress state is surfaced.", "affected_testIDs": ["button-Aguardando leitura..."]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_3_browser/preview.png", "/app/test_reports/iteration_3_browser"],
+  "action_items": ["Fix Expo Metro compatibility with @mediapipe/tasks-vision 1.0.1 dynamic import so the web bundle can load the real FaceLandmarker; verify engine loading/running/error transitions.", "Handle denied/unavailable camera as an explicit error state or prevent entering calibration; do not leave the primary button permanently locked."],
+  "critical_code_review_comments": ["Demo renders 18 deterministic decorative landmark dots even when no face has been detected; this can visually imply fabricated detection and conflicts with the no-fabricated-data requirement. Render overlays only from actual landmarks.", "PRD backlog still lists FaceLandmarker integration as pending despite the implementation being present; update documentation after the bundling issue is resolved."],
+  "updated_files": ["/app/test_reports/iteration_3.json"],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "50% (home loads; camera/engine flow fails)"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "At 390x844, home loads successfully. Clicking data-testid=button-Iniciar Demonstração reaches calibration, but console shows vision_bundle.mjs Invalid call at import(t.toString()), with processing-fps 0.0. No real camera/face data was available for validation because the bundle fails first.",
+  "rca_of_issue": "Reproduction: open preview, click Iniciar Demonstração, wait ~1.5s. Expo Metro attempts to transform node_modules/@mediapipe/tasks-vision/vision_bundle.mjs and rejects its internal dynamic import(t.toString()). RealFaceEngine.web imports the package dynamically, but Metro still resolves/transforms the package and fails before createFromOptions/detectForVideo can execute."
+}

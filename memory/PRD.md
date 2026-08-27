@@ -35,3 +35,10 @@ Demo acadêmica em português para apresentar um protótipo de visão computacio
 1. Integrar o modelo FaceLandmarker local e validar thresholds com diferentes iluminações.
 2. Testar câmera e vibração em Android/iOS reais.
 3. Refinar acessibilidade e estados de erro da câmera.
+
+## Atualização de visão computacional — 2026-08-27
+- Integrado MediaPipe FaceLandmarker Web via `@mediapipe/tasks-vision` 1.0.1, bundle ESM pinado e modelo local `public/models/face_landmarker.task`.
+- Implementados EAR geométrico, MAR geométrico, PERCLOS em janela deslizante de 60 segundos e contador de frames consecutivos abaixo do threshold.
+- Thresholds padrão antes da calibração: EAR 0.21 e MAR 0.50. A calibração calcula a mediana real de amostras e usa o ponto médio entre baseline de olhos abertos e fechados para o EAR personalizado.
+- Alerta de sonolência: 45 frames consecutivos abaixo do threshold (aproximadamente 1,5 s a 30 FPS); atenção a partir de 10 frames. FPS é medido pelo loop de inferência.
+- Validação automatizada confirmou ausência de mocks e ausência de upload; inferência numérica e FPS real permanecem pendentes de teste em navegador com webcam disponível.
