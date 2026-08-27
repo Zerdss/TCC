@@ -2,6 +2,7 @@ export type Point = { x: number; y: number; z?: number };
 
 export const LEFT_EYE = [33, 160, 158, 133, 153, 144];
 export const RIGHT_EYE = [362, 385, 387, 263, 373, 380];
+export const MOUTH_RING = [61, 39, 0, 269, 291, 405, 17, 181];
 const MOUTH_LEFT = 61;
 const MOUTH_RIGHT = 291;
 const MOUTH_TOP = 13;

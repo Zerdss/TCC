@@ -1,0 +1,22 @@
+{
+  "summary": "Frontend-only regression passed at 390x844: corrected EAR, PERCLOS, privacy, MAR, and PERCLOS icon labels render correctly; home has no horizontal overflow, and start reaches calibration without a red screen.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Real camera / FaceLandmarker inference", "issue": "Not verifiable in this runner because webcam input is unavailable. Prior Expo logs retain intermittent vision_bundle.mjs dynamic-import transform errors.", "affected_testIDs": ["vision-engine", "processing-fps"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_7_browser/home.png", "/app/test_reports/iteration_7.json"],
+  "action_items": ["Validate camera permission, local FaceLandmarker loading, landmarks, EAR/MAR, and 60-second PERCLOS on a webcam-capable browser.", "Investigate vision_bundle.mjs transform warnings if real-camera loading fails."],
+  "critical_code_review_comments": ["Requested technical wording is present in index.tsx and no ORELHA, ironic privacy copy, or ❓ icon appears in the live home screen.", "Mobile body and document widths both equal 390px; no horizontal overflow observed."],
+  "updated_files": ["/app/test_reports/iteration_7.json"],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "100% for requested home labels, layout, icon, and no-webcam navigation"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "Live preview passed label assertions at 390x844. Start button reached calibration and stayed gated at Aguardando leitura without webcam frames.",
+  "rca_of_issue": "The reported translation/label regression is resolved in the live build: EAR uses its technical acronym plus Portuguese expansion, PERCLOS explicitly says eyes closed over the last 60 seconds, privacy copy says local processing, and chart-line renders instead of a question-mark glyph. Real inference remains environment-limited."
+}

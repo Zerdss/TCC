@@ -42,3 +42,8 @@ Demo acadêmica em português para apresentar um protótipo de visão computacio
 - Thresholds padrão antes da calibração: EAR 0.21 e MAR 0.50. A calibração calcula a mediana real de amostras e usa o ponto médio entre baseline de olhos abertos e fechados para o EAR personalizado.
 - Alerta de sonolência: 45 frames consecutivos abaixo do threshold (aproximadamente 1,5 s a 30 FPS); atenção a partir de 10 frames. FPS é medido pelo loop de inferência.
 - Validação automatizada confirmou ausência de mocks e ausência de upload; inferência numérica e FPS real permanecem pendentes de teste em navegador com webcam disponível.
+## Atualização (jun/2026) — Pré-visualização da câmera
+- Câmera agora VISÍVEL nas telas de Calibração e Painel ao vivo (mesma instância do RealFaceEngine, mantida montada entre telas).
+- Overlay em canvas: malha facial (pontos), contornos dos olhos e boca, caixa do rosto e elipse-guia de enquadramento.
+- Badge de orientação em tempo real: "Rosto não detectado", "Aproxime-se", "Afaste-se", "Centralize o rosto", "Posicionamento ideal".
+- Correções: props (calibrationStep/earThreshold/callbacks) agora lidas via refs (evita closure obsoleta no loop de inferência); EAR/MAR formatados com 2 decimais e PERCLOS exibido em %.
