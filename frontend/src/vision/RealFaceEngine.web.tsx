@@ -6,15 +6,22 @@ type Props = {
   stream: MediaStream | null;
   calibrationStep: number;
   earThreshold: number;
-  onMetrics: (metrics: { ear: number; mar: number; perclos: number; closedFrames: number; landmarks: Point[] }) => void;
-  onCalibrationProgress: (progress: number, baseline: number | null) => void;
+  marThreshold: number;
+  onMetrics: (metrics: { ear: number; mar: number; perclos: number; closedFrames: number; closedMs: number; mouthOpenMs: number; yawning: boolean; landmarks: Point[] }) => void;
+  onCalibrationProgress: (progress: number, ear: number | null, mar: number | null) => void;
   onFps: (fps: number) => void;
   onEngineState: (state: "loading" | "running" | "error") => void;
 };
 
 const SAMPLES_PER_STEP = 90;
+// Bocejo real: boca acima do limiar de MAR de forma contínua. Fala e risada geram
+// aberturas curtas e intermitentes, que ficam abaixo desse tempo mínimo.
+const YAWN_MIN_MS = 1800;
+// Tolerância para não zerar a contagem por causa de um único frame com perda de tracking.
+const GAP_TOLERANCE_MS = 150;
+const median = (values: number[]) => { const sorted = [...values].sort((a, b) => a - b); return sorted[Math.floor(sorted.length / 2)]; };
 
-export default function RealFaceEngine({ stream, calibrationStep, earThreshold, onMetrics, onCalibrationProgress, onFps, onEngineState }: Props) {
+export default function RealFaceEngine({ stream, calibrationStep, earThreshold, marThreshold, onMetrics, onCalibrationProgress, onFps, onEngineState }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const guideRef = useRef("");
@@ -27,14 +34,20 @@ export default function RealFaceEngine({ stream, calibrationStep, earThreshold, 
   const closedFrames = useRef(0);
   const perclos = useRef(new PerclosWindow(60000));
   const sampleStep = useRef(-1);
-  const samples = useRef<number[]>([]);
+  const samples = useRef<{ ear: number; mar: number }[]>([]);
+  const closedSince = useRef(0);
+  const closedLastSeen = useRef(0);
+  const mouthSince = useRef(0);
+  const mouthLastSeen = useRef(0);
   const [error, setError] = useState("");
   const [guide, setGuide] = useState({ text: "Iniciando câmera local...", good: false });
   const stepRef = useRef(calibrationStep);
   const thresholdRef = useRef(earThreshold);
+  const marThresholdRef = useRef(marThreshold);
   const handlersRef = useRef({ onMetrics, onCalibrationProgress, onFps, onEngineState });
   stepRef.current = calibrationStep;
   thresholdRef.current = earThreshold;
+  marThresholdRef.current = marThreshold;
   handlersRef.current = { onMetrics, onCalibrationProgress, onFps, onEngineState };
 
   useEffect(() => {
@@ -158,13 +171,25 @@ export default function RealFaceEngine({ stream, calibrationStep, earThreshold, 
         if (values) {
           if (sampleStep.current !== stepRef.current) { sampleStep.current = stepRef.current; samples.current = []; }
           if (samples.current.length < SAMPLES_PER_STEP) {
-            samples.current.push(values.ear);
-            const sorted = [...samples.current].sort((a, b) => a - b);
-            handlersRef.current.onCalibrationProgress(Math.round((samples.current.length / SAMPLES_PER_STEP) * 100), sorted[Math.floor(sorted.length / 2)]);
+            samples.current.push({ ear: values.ear, mar: values.mar });
+            handlersRef.current.onCalibrationProgress(
+              Math.round((samples.current.length / SAMPLES_PER_STEP) * 100),
+              median(samples.current.map(sample => sample.ear)),
+              median(samples.current.map(sample => sample.mar)),
+            );
           }
-          if (values.ear < thresholdRef.current) closedFrames.current += 1; else closedFrames.current = 0;
+          const eyesClosed = values.ear < thresholdRef.current;
+          if (eyesClosed) { if (!closedSince.current) closedSince.current = now; closedLastSeen.current = now; closedFrames.current += 1; }
+          else if (now - closedLastSeen.current > GAP_TOLERANCE_MS) { closedSince.current = 0; closedFrames.current = 0; }
+          const closedMs = closedSince.current ? now - closedSince.current : 0;
+
+          const mouthOpen = values.mar >= marThresholdRef.current;
+          if (mouthOpen) { if (!mouthSince.current) mouthSince.current = now; mouthLastSeen.current = now; }
+          else if (now - mouthLastSeen.current > GAP_TOLERANCE_MS) mouthSince.current = 0;
+          const mouthOpenMs = mouthSince.current ? now - mouthSince.current : 0;
+
           const perclosValue = perclos.current.add(now, values.ear, thresholdRef.current);
-          handlersRef.current.onMetrics({ ear: values.ear, mar: values.mar, perclos: perclosValue, closedFrames: closedFrames.current, landmarks: points });
+          handlersRef.current.onMetrics({ ear: values.ear, mar: values.mar, perclos: perclosValue, closedFrames: closedFrames.current, closedMs, mouthOpenMs, yawning: mouthOpenMs >= YAWN_MIN_MS, landmarks: points });
         }
         frameCount.current += 1;
         if (now - fpsStart.current >= 1000) { handlersRef.current.onFps(frameCount.current * 1000 / (now - fpsStart.current)); fpsStart.current = now; frameCount.current = 0; }

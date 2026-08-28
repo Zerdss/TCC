@@ -54,3 +54,11 @@ Demo acadêmica em português para apresentar um protótipo de visão computacio
 - Cards de métricas da Home empilham em coluna (ícone + texto) abaixo de 480 px.
 - Cards EAR/MAR/PERCLOS: fonte escalável (adjustsFontSizeToFit), rótulo em 1 linha, ícone oculto abaixo de 360 px; PERCLOS agora normalizado (0-1) no gráfico.
 - Títulos H1/H2 e textos reduzem em telas pequenas; fórmulas na tela de explicação quebram em linhas.
+
+## Atualização — Redução de falsos positivos (sensibilidade)
+- EAR: limiar = fechado + 0,28 x (aberto - fechado) (antes ponto médio 0,50), com clamp [0,10 ; 0,28]; padrão sem calibração 0,19.
+- MAR: limiar derivado do bocejo (mediana x 0,72) e refinado pela etapa de sorriso: sorriso + 0,6 x (bocejo - sorriso), clamp [0,45 ; 0,90]; padrão 0,60.
+- Bocejo só conta se o MAR ficar acima do limiar de forma CONTINUA por 1800 ms (tolerancia de 150 ms para perdas de tracking) - fala/risada geram picos curtos e sao ignorados.
+- Olhos fechados agora medidos em tempo: ATENCAO 800 ms; ALERTA 2000 ms (~60 frames a 30 FPS, antes 45).
+- Nova etapa 04 de calibracao (opcional, com botao "Pular etapa opcional"): sorriso/risada natural captura EAR e MAR de expressoes cotidianas.
+- Painel ao vivo exibe os limiares ativos para documentacao no TCC.
