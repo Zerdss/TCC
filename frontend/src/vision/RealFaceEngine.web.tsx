@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { calculateMetrics, LEFT_EYE, MOUTH_RING, PerclosWindow, Point, RIGHT_EYE } from "./metrics";
+import { calculateMetrics, LEFT_EYE, MOUTH_RING, MovingAverage, PerclosWindow, Point, RIGHT_EYE } from "./metrics";
 
 type Props = {
   stream: MediaStream | null;
   calibrationStep: number;
   earThreshold: number;
   marThreshold: number;
-  onMetrics: (metrics: { ear: number; mar: number; perclos: number; closedFrames: number; closedMs: number; mouthOpenMs: number; yawning: boolean; landmarks: Point[] }) => void;
+  marNeutralMax: number;
+  onMetrics: (metrics: { ear: number; mar: number; perclos: number; closedFrames: number; closedMs: number; mouthOpenMs: number; blinkRate: number; expression: boolean; yawning: boolean; alert: boolean; alertReason: "" | "eyes" | "yawn"; landmarks: Point[] }) => void;
   onCalibrationProgress: (progress: number, ear: number | null, mar: number | null) => void;
   onFps: (fps: number) => void;
   onEngineState: (state: "loading" | "running" | "error") => void;
@@ -19,9 +20,20 @@ const SAMPLES_PER_STEP = 90;
 const YAWN_MIN_MS = 1800;
 // Tolerância para não zerar a contagem por causa de um único frame com perda de tracking.
 const GAP_TOLERANCE_MS = 150;
+// Piscada saudável dura de 0,1 a 0,4 s: nessa faixa o fechamento é contado como piscada
+// (frequência por minuto) e NÃO alimenta o PERCLOS nem o alerta de fadiga.
+const BLINK_MIN_MS = 80;
+const BLINK_MAX_MS = 400;
+// Fechamento contínuo mínimo para ser considerado sinal de fadiga.
+const CLOSED_FATIGUE_MS = 1200;
+// Histerese: tempo de normalidade estável necessário para sair do alerta.
+const RECOVERY_MS = 1000;
+// Suavização temporal (média móvel) aplicada ao EAR e ao MAR.
+const SMOOTH_WINDOW = 7;
+const BLINK_RATE_WINDOW_MS = 60000;
 const median = (values: number[]) => { const sorted = [...values].sort((a, b) => a - b); return sorted[Math.floor(sorted.length / 2)]; };
 
-export default function RealFaceEngine({ stream, calibrationStep, earThreshold, marThreshold, onMetrics, onCalibrationProgress, onFps, onEngineState }: Props) {
+export default function RealFaceEngine({ stream, calibrationStep, earThreshold, marThreshold, marNeutralMax, onMetrics, onCalibrationProgress, onFps, onEngineState }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const guideRef = useRef("");
@@ -39,15 +51,23 @@ export default function RealFaceEngine({ stream, calibrationStep, earThreshold, 
   const closedLastSeen = useRef(0);
   const mouthSince = useRef(0);
   const mouthLastSeen = useRef(0);
+  const earAvg = useRef(new MovingAverage(SMOOTH_WINDOW));
+  const marAvg = useRef(new MovingAverage(SMOOTH_WINDOW));
+  const blinks = useRef<number[]>([]);
+  const alertActive = useRef(false);
+  const alertReason = useRef<"" | "eyes" | "yawn">("");
+  const normalSince = useRef(0);
   const [error, setError] = useState("");
   const [guide, setGuide] = useState({ text: "Iniciando câmera local...", good: false });
   const stepRef = useRef(calibrationStep);
   const thresholdRef = useRef(earThreshold);
   const marThresholdRef = useRef(marThreshold);
+  const neutralRef = useRef(marNeutralMax);
   const handlersRef = useRef({ onMetrics, onCalibrationProgress, onFps, onEngineState });
   stepRef.current = calibrationStep;
   thresholdRef.current = earThreshold;
   marThresholdRef.current = marThreshold;
+  neutralRef.current = marNeutralMax;
   handlersRef.current = { onMetrics, onCalibrationProgress, onFps, onEngineState };
 
   useEffect(() => {
@@ -169,27 +189,55 @@ export default function RealFaceEngine({ stream, calibrationStep, earThreshold, 
         paint(points);
         const values = calculateMetrics(points);
         if (values) {
+          const ear = earAvg.current.push(values.ear);
+          const mar = marAvg.current.push(values.mar);
           if (sampleStep.current !== stepRef.current) { sampleStep.current = stepRef.current; samples.current = []; }
           if (samples.current.length < SAMPLES_PER_STEP) {
-            samples.current.push({ ear: values.ear, mar: values.mar });
+            samples.current.push({ ear, mar });
             handlersRef.current.onCalibrationProgress(
               Math.round((samples.current.length / SAMPLES_PER_STEP) * 100),
               median(samples.current.map(sample => sample.ear)),
               median(samples.current.map(sample => sample.mar)),
             );
           }
-          const eyesClosed = values.ear < thresholdRef.current;
+          // Checagem cruzada: MAR elevado junto com queda do EAR indica sorriso/fala,
+          // não fadiga — esses frames não contam para o alerta de olhos fechados.
+          const expression = mar >= neutralRef.current;
+          const eyesClosed = ear < thresholdRef.current && !expression;
           if (eyesClosed) { if (!closedSince.current) closedSince.current = now; closedLastSeen.current = now; closedFrames.current += 1; }
-          else if (now - closedLastSeen.current > GAP_TOLERANCE_MS) { closedSince.current = 0; closedFrames.current = 0; }
+          else if (now - closedLastSeen.current > GAP_TOLERANCE_MS) {
+            if (closedSince.current) {
+              const duration = closedLastSeen.current - closedSince.current;
+              if (duration >= BLINK_MIN_MS && duration <= BLINK_MAX_MS) blinks.current.push(closedLastSeen.current);
+            }
+            closedSince.current = 0;
+            closedFrames.current = 0;
+          }
           const closedMs = closedSince.current ? now - closedSince.current : 0;
+          blinks.current = blinks.current.filter(time => now - time <= BLINK_RATE_WINDOW_MS);
 
-          const mouthOpen = values.mar >= marThresholdRef.current;
+          const mouthOpen = mar >= marThresholdRef.current;
           if (mouthOpen) { if (!mouthSince.current) mouthSince.current = now; mouthLastSeen.current = now; }
           else if (now - mouthLastSeen.current > GAP_TOLERANCE_MS) mouthSince.current = 0;
           const mouthOpenMs = mouthSince.current ? now - mouthSince.current : 0;
+          const yawning = mouthOpenMs >= YAWN_MIN_MS;
 
-          const perclosValue = perclos.current.add(now, values.ear, thresholdRef.current);
-          handlersRef.current.onMetrics({ ear: values.ear, mar: values.mar, perclos: perclosValue, closedFrames: closedFrames.current, closedMs, mouthOpenMs, yawning: mouthOpenMs >= YAWN_MIN_MS, landmarks: points });
+          // PERCLOS ignora piscadas curtas: só conta fechamentos que passaram de 0,4 s.
+          const perclosValue = perclos.current.add(now, closedMs > BLINK_MAX_MS);
+
+          const drowsy = closedMs >= CLOSED_FATIGUE_MS;
+          if (drowsy || yawning) { alertActive.current = true; alertReason.current = drowsy ? "eyes" : "yawn"; normalSince.current = 0; }
+          else if (alertActive.current) {
+            // Histerese: só volta ao normal após 1 s contínuo de olhos abertos e boca neutra.
+            const stable = ear >= thresholdRef.current && mar < marThresholdRef.current;
+            if (!stable) normalSince.current = 0;
+            else {
+              if (!normalSince.current) normalSince.current = now;
+              if (now - normalSince.current >= RECOVERY_MS) { alertActive.current = false; alertReason.current = ""; normalSince.current = 0; }
+            }
+          }
+
+          handlersRef.current.onMetrics({ ear, mar, perclos: perclosValue, closedFrames: closedFrames.current, closedMs, mouthOpenMs, blinkRate: blinks.current.length, expression, yawning, alert: alertActive.current, alertReason: alertReason.current, landmarks: points });
         }
         frameCount.current += 1;
         if (now - fpsStart.current >= 1000) { handlersRef.current.onFps(frameCount.current * 1000 / (now - fpsStart.current)); fpsStart.current = now; frameCount.current = 0; }

@@ -62,3 +62,11 @@ Demo acadêmica em português para apresentar um protótipo de visão computacio
 - Olhos fechados agora medidos em tempo: ATENCAO 800 ms; ALERTA 2000 ms (~60 frames a 30 FPS, antes 45).
 - Nova etapa 04 de calibracao (opcional, com botao "Pular etapa opcional"): sorriso/risada natural captura EAR e MAR de expressoes cotidianas.
 - Painel ao vivo exibe os limiares ativos para documentacao no TCC.
+
+## Atualização — Logica temporal refinada (piscadas x sonolencia, sorriso)
+- Suavizacao: media movel de 7 frames aplicada a EAR e MAR (classe MovingAverage).
+- Piscada (0,08 a 0,40 s) e contada como piscada normal, NAO entra no PERCLOS nem no alerta; frequencia exibida como piscadas/min (janela de 60 s), com ATENCAO a partir de 26/min.
+- Fadiga por olhos: EAR abaixo do limiar de forma CONTINUA por 1200 ms (medido em ms, independente de FPS). ATENCAO a partir de 700 ms.
+- Checagem cruzada EAR x MAR: se o MAR estiver acima da faixa neutra (padrao 0,35; calibrado como mediana do sorriso x 0,95, limites 0,28-0,50) o frame e tratado como sorriso/fala e nao conta para o alerta de olhos fechados.
+- Histerese: apos o alerta, exige 1000 ms continuos com olhos abertos e boca neutra para voltar a NORMAL.
+- PERCLOS agora recebe apenas fechamentos acima de 0,4 s.

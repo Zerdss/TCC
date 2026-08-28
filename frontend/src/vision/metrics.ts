@@ -24,11 +24,23 @@ export function calculateMetrics(points: Point[]) {
   return { ear, mar, leftEAR, rightEAR };
 }
 
+export class MovingAverage {
+  private values: number[] = [];
+  constructor(private readonly size = 7) {}
+  push(value: number) {
+    this.values.push(value);
+    if (this.values.length > this.size) this.values.shift();
+    return this.value;
+  }
+  get value() { return this.values.reduce((total, value) => total + value, 0) / Math.max(this.values.length, 1); }
+  reset() { this.values = []; }
+}
+
 export class PerclosWindow {
   private samples: Array<{ time: number; closed: boolean }> = [];
   constructor(private readonly windowMs = 60000) {}
-  add(time: number, ear: number, threshold: number) {
-    this.samples.push({ time, closed: ear < threshold });
+  add(time: number, closed: boolean) {
+    this.samples.push({ time, closed });
     const cutoff = time - this.windowMs;
     while (this.samples.length && this.samples[0].time < cutoff) this.samples.shift();
     if (this.samples.length < 2) return 0;
