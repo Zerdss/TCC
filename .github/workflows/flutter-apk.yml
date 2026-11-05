@@ -1,7 +1,10 @@
-name: Flutter APK
+name: Flutter APK e iOS
 
-# Gera o APK do app Flutter (flutter_app/) para instalar no celular Android.
-# O arquivo fica disponível em "Actions" → execução → "Artifacts" → fatigue-guard-apk.
+# Gera os instaladores do app Flutter (flutter_app/):
+# * fatigue-guard-apk  → APK para Android (instalar direto no celular);
+# * fatigue-guard-ipa  → IPA para iPhone SEM assinatura (instalar com Sideloadly/AltStore
+#   usando o seu Apple ID, que assina o app no momento da instalação).
+# Os arquivos ficam em "Actions" → execução → "Artifacts".
 on:
   push:
     paths:
@@ -48,4 +51,35 @@ jobs:
         with:
           name: fatigue-guard-apk
           path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+  ios:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: flutter_app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Dependências
+        run: flutter pub get
+
+      - name: Compilar para iPhone (sem assinatura)
+        run: flutter build ios --release --no-codesign
+
+      - name: Empacotar IPA
+        run: |
+          mkdir -p build/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ipa/Payload/
+          cd build/ipa && zip -qry FatigueGuard-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fatigue-guard-ipa
+          path: flutter_app/build/ipa/FatigueGuard-unsigned.ipa
           retention-days: 30
