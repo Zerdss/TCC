@@ -1,7 +1,7 @@
 import 'metrics.dart';
 
 // ---------------------------------------------------------------------------
-// Parâmetros (mesmos do protótipo web, ajustados para a taxa de quadros típica
+// Parâmetros (herdados do primeiro protótipo, ajustados para a taxa de quadros típica
 // do ML Kit em celulares, ~15–30 FPS). Todos os tempos são medidos em ms, logo
 // a lógica é independente do FPS.
 // ---------------------------------------------------------------------------

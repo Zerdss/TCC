@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Paleta "Dark-First Utility" definida em design_guidelines.json.
+/// Paleta "Dark-First Utility" definida em docs/design_guidelines.json.
 abstract final class AppColors {
   static const bg = Color(0xFF090D14);
   static const panel = Color(0xFF121A26);
