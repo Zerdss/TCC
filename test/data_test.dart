@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:fatigue_guard/data/calibration_store.dart';
 import 'package:fatigue_guard/data/csv_export.dart';
 import 'package:fatigue_guard/data/models.dart';
@@ -79,12 +81,56 @@ void main() {
     });
   });
 
+  test('SessionRecorder registra alertas de cabeça e de rosto ausente', () {
+    final r = SessionRecorder(startedAt: t0, earThreshold: 0.2, marThreshold: 0.6, calibrated: false);
+    DateTime at(int s) => t0.add(Duration(seconds: s));
+    r.add(const FatigueMetrics(ear: 0.3), FatigueStatus.normal, at(1));
+    r.add(const FatigueMetrics(alert: true, alertReason: AlertReason.head), FatigueStatus.alert, at(2));
+    r.add(const FatigueMetrics(ear: 0.3), FatigueStatus.normal, at(5));
+    r.add(const FatigueMetrics(alert: true, alertReason: AlertReason.faceLost), FatigueStatus.alert, at(9));
+    r.add(const FatigueMetrics(ear: 0.3), FatigueStatus.normal, at(12));
+    final s = r.finish();
+    expect(s.alertsHead, 1);
+    expect(s.alertsFace, 1);
+    expect(s.totalAlerts, 2);
+  });
+
+  test('banco antigo (v1) é atualizado para v2 sem perder sessões', () async {
+    sqfliteFfiInit();
+    final path = '${Directory.systemTemp.createTempSync().path}/v1.db';
+    final old = await databaseFactoryFfi.openDatabase(path,
+        options: OpenDatabaseOptions(
+          version: 1,
+          onCreate: (db, _) async {
+            await db.execute('CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, started_at TEXT NOT NULL, '
+                'ended_at TEXT NOT NULL, duration_s REAL NOT NULL, alerts_eyes INTEGER NOT NULL, '
+                'alerts_yawn INTEGER NOT NULL, attention_count INTEGER NOT NULL, max_perclos REAL NOT NULL, '
+                'avg_blink_rate REAL NOT NULL, ear_threshold REAL NOT NULL, mar_threshold REAL NOT NULL, '
+                'calibrated INTEGER NOT NULL)');
+            await db.execute('CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id INTEGER NOT NULL, '
+                'time TEXT NOT NULL, type TEXT NOT NULL, ear REAL NOT NULL, mar REAL NOT NULL, perclos REAL NOT NULL)');
+            final m = sampleSession().toMap()
+              ..remove('alerts_head')
+              ..remove('alerts_face');
+            await db.insert('sessions', m);
+          },
+        ));
+    await old.close();
+    final db = await SessionDatabase.open(factory: databaseFactoryFfi, path: path);
+    final sessions = await db.listSessions();
+    expect(sessions, hasLength(1));
+    expect(sessions.first.alertsHead, 0);
+    await db.insertSession(sampleSession());
+    expect(await db.listSessions(), hasLength(2));
+    await db.close();
+  });
+
   test('CSV usa ; e uma linha por sessão/evento', () {
     final s = sampleSession();
     final csv = sessionsToCsv([s]).trim().split('\n');
     expect(csv, hasLength(2));
     expect(csv.first, startsWith('id;inicio;fim;duracao_s'));
-    expect(csv[1].split(';'), hasLength(12));
+    expect(csv[1].split(';'), hasLength(14));
     final ev = eventsToCsv(s.events).trim().split('\n');
     expect(ev, hasLength(4));
     expect(ev[2], contains(';eyes;'));

@@ -12,8 +12,16 @@ Fluxo:
 - Lógica temporal: piscadas (0,08–0,4 s) não geram alerta; olhos fechados por 1,2 s
   ou bocejo sustentado por 1,8 s geram **ALERTA**; checagem cruzada EAR × MAR para
   sorriso/fala; histerese de 1 s para voltar ao normal.
-- Status em 3 níveis (NORMAL / ATENÇÃO / ALERTA DE SONOLÊNCIA), bipe de alerta e vibração
-  (podem ser desligados), tela sempre ligada durante o monitoramento.
+- **Cabeça caindo**: ângulos da cabeça do ML Kit; queda de 20° (ou inclinação lateral de 30°)
+  em relação à posição normal medida na calibração, por 1,5 s → ALERTA.
+- **Rosto fora da câmera**: 2 s → ATENÇÃO; 4 s → ALERTA.
+- Status em 3 níveis (NORMAL / ATENÇÃO / ALERTA DE SONOLÊNCIA) com **alerta progressivo**:
+  tela cheia piscando, bipe e vibração; se continuar por 4 s, sirene rápida e vibração longa.
+  Botão **"Estou acordado"** silencia por 10 s. O som toca no canal de alarme (Android) e
+  mesmo no modo silencioso (iPhone). Tela sempre ligada durante o monitoramento.
+- **Modo deitado** (opcional): celular na horizontal no suporte do carro, com câmera e métricas
+  lado a lado. Se o aparelho entregar a imagem num ângulo inesperado, o app testa as rotações
+  sozinho até reencontrar o rosto.
 - **Configurações** (ícone no topo de qualquer tela):
   - alertas: som, vibração e botão "Testar alerta";
   - sorriso e expressões: ligar/desligar o filtro de sorriso/fala, tolerância ao sorriso e
@@ -21,6 +29,9 @@ Fluxo:
   - sensibilidade: limiares de EAR e MAR (ajuste manual) e refazer calibração completa;
   - tempos: olhos fechados para alertar (0,8–3 s), bocejo sustentado (1–3 s), piscadas/min
     para ATENÇÃO;
+  - cabeça e rosto: liga/desliga, graus de inclinação, tempo com a cabeça caída, tempo sem rosto;
+  - alertas: tela cheia e alerta progressivo (liga/desliga), testar bipe e sirene;
+  - tela: permitir modo deitado;
   - dados: histórico, apagar calibração, restaurar padrões.
 - Design "Dark-First Utility" de `docs/design_guidelines.json`: fontes Barlow Condensed
   (títulos/números) e Manrope (texto), ícone próprio e tela de abertura escura.
@@ -51,7 +62,7 @@ CREATE TABLE sessions (
 CREATE TABLE events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE,
-  time TEXT, type TEXT,            -- eyes | yawn | attention
+  time TEXT, type TEXT,            -- eyes | yawn | head | faceLost | attention
   ear REAL, mar REAL, perclos REAL
 );
 ```
@@ -102,6 +113,7 @@ lib/
     vision_controller.dart      câmera + ML Kit → métricas → status/alertas
   widgets/
     camera_panel.dart           preview, malha facial, guia de enquadramento
+    alert_overlay.dart          alerta em tela cheia ("Estou acordado")
     common.dart                 cabeçalho, botões, painéis
   screens/
     home_screen.dart  calibration_screen.dart  demo_screen.dart  explanation_screen.dart
@@ -110,6 +122,7 @@ lib/
 assets/
   fonts/                        Barlow Condensed + Manrope (licença OFL)
   sounds/alerta.wav             bipe do alerta
+  sounds/sirene.wav             sirene do alerta intensificado
   icon/                         ícone do app (gerado com flutter_launcher_icons)
 test/                           testes unitários e de widget
 ```

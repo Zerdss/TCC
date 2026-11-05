@@ -7,7 +7,8 @@ import 'models.dart';
 ///
 /// Tabelas:
 /// * `sessions` — resumo de cada sessão de monitoramento;
-/// * `events`   — alertas e avisos de atenção de cada sessão (FK → sessions).
+/// * `events`   — alertas e avisos de atenção de cada sessão (FK → sessions);
+///   `type` = eyes | yawn | head | faceLost | attention.
 ///
 /// Apenas números e horários são gravados; nenhuma imagem ou vídeo.
 class SessionDatabase {
@@ -15,7 +16,8 @@ class SessionDatabase {
 
   final Database _db;
 
-  static const _version = 1;
+  /// v2: colunas alerts_head e alerts_face.
+  static const _version = 2;
 
   /// Abre (ou cria) o banco. [factory] e [path] permitem usar um banco em
   /// memória nos testes.
@@ -36,6 +38,8 @@ class SessionDatabase {
               duration_s REAL NOT NULL,
               alerts_eyes INTEGER NOT NULL,
               alerts_yawn INTEGER NOT NULL,
+              alerts_head INTEGER NOT NULL DEFAULT 0,
+              alerts_face INTEGER NOT NULL DEFAULT 0,
               attention_count INTEGER NOT NULL,
               max_perclos REAL NOT NULL,
               avg_blink_rate REAL NOT NULL,
@@ -54,6 +58,12 @@ class SessionDatabase {
               perclos REAL NOT NULL
             )''');
           await db.execute('CREATE INDEX idx_events_session ON events(session_id)');
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await db.execute('ALTER TABLE sessions ADD COLUMN alerts_head INTEGER NOT NULL DEFAULT 0');
+            await db.execute('ALTER TABLE sessions ADD COLUMN alerts_face INTEGER NOT NULL DEFAULT 0');
+          }
         },
       ),
     );

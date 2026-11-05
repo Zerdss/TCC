@@ -12,7 +12,7 @@ import 'widgets/common.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // A pré‑visualização e o mapeamento dos landmarks assumem orientação retrato.
+  // Começa em retrato; o modo deitado é liberado nas Configurações.
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
@@ -47,6 +47,7 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
   );
   bool _resumeCamera = false;
   bool _wakelock = false;
+  bool? _landscape;
 
   @override
   void initState() {
@@ -56,8 +57,17 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
     vision.loadPreferences();
   }
 
-  // Mantém a tela ligada enquanto a câmera estiver monitorando.
+  // Mantém a tela ligada enquanto a câmera estiver monitorando e aplica a
+  // opção "Permitir modo deitado" das Configurações.
   void _syncWakelock() {
+    final landscape = vision.settings.allowLandscape;
+    if (landscape != _landscape) {
+      _landscape = landscape;
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        if (landscape) ...[DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight],
+      ]);
+    }
     final enable = vision.state == EngineState.running;
     if (enable == _wakelock) return;
     _wakelock = enable;

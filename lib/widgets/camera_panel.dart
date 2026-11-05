@@ -29,7 +29,7 @@ class CameraPanel extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
             ),
             child: AspectRatio(
-              aspectRatio: 3 / 4,
+              aspectRatio: MediaQuery.orientationOf(context) == Orientation.landscape ? 4 / 3 : 3 / 4,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -59,11 +59,16 @@ class _CoverPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = controller.value.previewSize;
     if (size == null) return CameraPreview(controller);
-    // previewSize vem em orientação paisagem; o app roda travado em retrato.
+    // previewSize vem em orientação paisagem; em retrato a imagem fica "em pé".
+    final portrait = MediaQuery.orientationOf(context) == Orientation.portrait;
     return FittedBox(
       fit: BoxFit.cover,
       clipBehavior: Clip.hardEdge,
-      child: SizedBox(width: size.height, height: size.width, child: CameraPreview(controller)),
+      child: SizedBox(
+        width: portrait ? size.height : size.width,
+        height: portrait ? size.width : size.height,
+        child: CameraPreview(controller),
+      ),
     );
   }
 }

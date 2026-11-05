@@ -19,10 +19,11 @@ class AppScope extends InheritedWidget {
 
 /// Estrutura comum: área segura, rolagem, largura máxima e cabeçalho do app.
 class AppPage extends StatelessWidget {
-  const AppPage({super.key, required this.children, this.showSettings = true});
+  const AppPage({super.key, required this.children, this.showSettings = true, this.maxWidth = 760});
 
   final List<Widget> children;
   final bool showSettings;
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +39,7 @@ class AppPage extends StatelessWidget {
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
+              constraints: BoxConstraints(maxWidth: maxWidth),
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 48),
                 children: [AppHeader(showSettings: showSettings), const SizedBox(height: 24), ...children],

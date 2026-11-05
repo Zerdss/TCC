@@ -41,7 +41,12 @@ class SessionRecorder {
       if (status == FatigueStatus.alert) {
         events.add(SessionEvent(
           time: time,
-          type: m.alertReason == AlertReason.yawn ? EventType.yawn : EventType.eyes,
+          type: switch (m.alertReason) {
+            AlertReason.yawn => EventType.yawn,
+            AlertReason.head => EventType.head,
+            AlertReason.faceLost => EventType.faceLost,
+            _ => EventType.eyes,
+          },
           ear: m.ear,
           mar: m.mar,
           perclos: m.perclos,
@@ -60,6 +65,8 @@ class SessionRecorder {
         endedAt: endedAt ?? _lastTime,
         alertsEyes: events.where((e) => e.type == EventType.eyes).length,
         alertsYawn: events.where((e) => e.type == EventType.yawn).length,
+        alertsHead: events.where((e) => e.type == EventType.head).length,
+        alertsFace: events.where((e) => e.type == EventType.faceLost).length,
         attentionCount: events.where((e) => e.type == EventType.attention).length,
         maxPerclos: _maxPerclos,
         avgBlinkRate: _blinkSamples == 0 ? 0 : _blinkSum / _blinkSamples,

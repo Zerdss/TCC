@@ -1,5 +1,5 @@
 /// Tipos de evento registrados durante o monitoramento.
-enum EventType { eyes, yawn, attention }
+enum EventType { eyes, yawn, head, faceLost, attention }
 
 extension EventTypeLabel on EventType {
   String get code => name;
@@ -7,6 +7,8 @@ extension EventTypeLabel on EventType {
   String get label => switch (this) {
         EventType.eyes => 'Alerta: olhos fechados',
         EventType.yawn => 'Alerta: bocejo sustentado',
+        EventType.head => 'Alerta: cabeça caindo',
+        EventType.faceLost => 'Alerta: rosto fora da câmera',
         EventType.attention => 'Atenção',
       };
 
@@ -62,6 +64,8 @@ class SessionRecord {
     required this.endedAt,
     required this.alertsEyes,
     required this.alertsYawn,
+    this.alertsHead = 0,
+    this.alertsFace = 0,
     required this.attentionCount,
     required this.maxPerclos,
     required this.avgBlinkRate,
@@ -76,6 +80,8 @@ class SessionRecord {
   final DateTime endedAt;
   final int alertsEyes;
   final int alertsYawn;
+  final int alertsHead;
+  final int alertsFace;
   final int attentionCount;
   final double maxPerclos;
   final double avgBlinkRate;
@@ -85,7 +91,7 @@ class SessionRecord {
   final List<SessionEvent> events;
 
   Duration get duration => endedAt.difference(startedAt);
-  int get totalAlerts => alertsEyes + alertsYawn;
+  int get totalAlerts => alertsEyes + alertsYawn + alertsHead + alertsFace;
 
   Map<String, Object?> toMap() => {
         'started_at': startedAt.toIso8601String(),
@@ -93,6 +99,8 @@ class SessionRecord {
         'duration_s': duration.inMilliseconds / 1000,
         'alerts_eyes': alertsEyes,
         'alerts_yawn': alertsYawn,
+        'alerts_head': alertsHead,
+        'alerts_face': alertsFace,
         'attention_count': attentionCount,
         'max_perclos': maxPerclos,
         'avg_blink_rate': avgBlinkRate,
@@ -108,6 +116,8 @@ class SessionRecord {
         endedAt: DateTime.parse(m['ended_at'] as String),
         alertsEyes: m['alerts_eyes'] as int,
         alertsYawn: m['alerts_yawn'] as int,
+        alertsHead: (m['alerts_head'] as int?) ?? 0,
+        alertsFace: (m['alerts_face'] as int?) ?? 0,
         attentionCount: m['attention_count'] as int,
         maxPerclos: (m['max_perclos'] as num).toDouble(),
         avgBlinkRate: (m['avg_blink_rate'] as num).toDouble(),

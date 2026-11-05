@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../vision/fatigue_engine.dart';
 import '../vision/vision_controller.dart';
+import '../widgets/alert_overlay.dart';
 import '../widgets/camera_panel.dart';
 import '../widgets/common.dart';
 import 'calibration_screen.dart';
@@ -49,55 +50,85 @@ class _DemoScreenState extends State<DemoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
+    final size = MediaQuery.sizeOf(context);
+    // Celular deitado (ex.: no suporte do carro): câmera à esquerda, painel à direita.
+    final wide = size.width > size.height && size.width >= 640;
+
+    final status = ListenableBuilder(
+      listenable: vision,
+      builder: (context, _) => _StatusCard(vision: vision),
+    );
+    final camera = ListenableBuilder(
+      listenable: vision,
+      builder: (context, child) => AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: vision.status == FatigueStatus.normal
+              ? Colors.transparent
+              : statusColor(vision.status).withValues(alpha: 0.85),
+        ),
+        child: child,
+      ),
+      child: CameraPanel(vision: vision),
+    );
+    final telemetry = ListenableBuilder(listenable: vision, builder: (context, _) => _Telemetry(vision: vision));
+    final buttons = Row(
       children: [
-        const PageTitle(kicker: 'ETAPA 03 / 04 • AO VIVO', title: 'Painel de monitoramento'),
-        const SizedBox(height: 16),
-        ListenableBuilder(
-          listenable: vision,
-          builder: (context, _) => _StatusCard(vision: vision),
-        ),
-        const SizedBox(height: 12),
-        ListenableBuilder(
-          listenable: vision,
-          builder: (context, child) => AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              color: vision.status == FatigueStatus.normal
-                  ? Colors.transparent
-                  : statusColor(vision.status).withValues(alpha: 0.85),
-            ),
-            child: child,
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _recalibrate,
+            icon: const Icon(Icons.restart_alt, color: AppColors.amber, size: 18),
+            label: const FittedBox(child: Text('Recalibrar', maxLines: 1)),
           ),
-          child: CameraPanel(vision: vision),
         ),
-        ListenableBuilder(listenable: vision, builder: (context, _) => _Telemetry(vision: vision)),
-        const SizedBox(height: 20),
-        const Divider(),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _recalibrate,
-                icon: const Icon(Icons.restart_alt, color: AppColors.amber, size: 18),
-                label: const FittedBox(child: Text('Recalibrar', maxLines: 1)),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilledButton.icon(
-                key: const Key('button-como-funciona'),
-                onPressed: () => Navigator.of(context)
-                    .push(MaterialPageRoute(builder: (_) => const ExplanationScreen())),
-                icon: const Icon(Icons.menu_book_outlined, size: 18),
-                label: const FittedBox(child: Text('Como funciona', maxLines: 1)),
-              ),
-            ),
-          ],
+        const SizedBox(width: 10),
+        Expanded(
+          child: FilledButton.icon(
+            key: const Key('button-como-funciona'),
+            onPressed: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExplanationScreen())),
+            icon: const Icon(Icons.menu_book_outlined, size: 18),
+            label: const FittedBox(child: Text('Como funciona', maxLines: 1)),
+          ),
         ),
+      ],
+    );
+
+    return Stack(
+      children: [
+        AppPage(
+          maxWidth: wide ? 1200 : 760,
+          children: wide
+              ? [
+                  // Deitado: sem título, para a câmera caber inteira na altura da tela.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 5, child: camera),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        flex: 6,
+                        child: Column(children: [status, telemetry, const SizedBox(height: 16), buttons]),
+                      ),
+                    ],
+                  ),
+                ]
+              : [
+                  const PageTitle(kicker: 'ETAPA 03 / 04 • AO VIVO', title: 'Painel de monitoramento'),
+                  const SizedBox(height: 16),
+                  status,
+                  const SizedBox(height: 12),
+                  camera,
+                  telemetry,
+                  const SizedBox(height: 20),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  buttons,
+                ],
+        ),
+        Positioned.fill(child: FullScreenAlert(vision: vision)),
       ],
     );
   }
@@ -312,6 +343,20 @@ class _Telemetry extends StatelessWidget {
               color: m.closedMs > 0 ? AppColors.amber : AppColors.muted,
               text: 'Olhos fechados: ${(m.closedMs / 1000).toStringAsFixed(1)} s',
             ),
+            if (s.headEnabled && m.faceVisible)
+              _Chip(
+                icon: Icons.face_retouching_natural,
+                color: m.headDownMs > 0 ? AppColors.yellow : AppColors.muted,
+                text: m.headDownMs > 0
+                    ? 'Cabeça caída: ${(m.headDownMs / 1000).toStringAsFixed(1)} s'
+                    : 'Cabeça: ${m.headPitch >= 0 ? '↓' : '↑'} ${m.headPitch.abs().round()}°',
+              ),
+            if (!m.faceVisible)
+              _Chip(
+                icon: Icons.no_accounts_outlined,
+                color: AppColors.red,
+                text: 'Sem rosto: ${(m.faceMissingMs / 1000).toStringAsFixed(1)} s',
+              ),
             if (m.mouthOpenMs > 0)
               _Chip(
                 icon: Icons.record_voice_over_outlined,
@@ -344,7 +389,9 @@ class _Telemetry extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Alerta: olhos fechados por ${formatSeconds(s.eyesAlertMs)} s contínuos (piscadas de 0,08 a 0,4 s '
-              'ignoradas) ou bocejo sustentado por ${formatSeconds(s.yawnAlertMs)} s. Média móvel de '
+              'ignoradas), bocejo sustentado por ${formatSeconds(s.yawnAlertMs)} s'
+              '${s.headEnabled ? ', cabeça caída (${s.headDropDeg.round()}°) por ${formatSeconds(s.headAlertMs)} s' : ''}'
+              '${s.faceLostEnabled ? ' ou rosto fora da câmera por ${formatSeconds(s.faceLostAlertMs)} s' : ''}. Média móvel de '
               '$smoothWindow quadros e histerese de 1,0 s para voltar ao normal. '
               'Ajuste tudo em Configurações (ícone no topo).',
               style: AppText.body.copyWith(fontSize: 12),

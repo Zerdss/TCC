@@ -230,6 +230,8 @@ class SessionDetailScreen extends StatelessWidget {
       ('Duração', formatDuration(s.duration)),
       ('Alertas — olhos fechados', '${s.alertsEyes}'),
       ('Alertas — bocejo', '${s.alertsYawn}'),
+      ('Alertas — cabeça caindo', '${s.alertsHead}'),
+      ('Alertas — rosto fora da câmera', '${s.alertsFace}'),
       ('Avisos de atenção', '${s.attentionCount}'),
       ('PERCLOS máximo', '${(s.maxPerclos * 100).toStringAsFixed(1)}%'),
       ('Piscadas/min (média)', s.avgBlinkRate.toStringAsFixed(1)),

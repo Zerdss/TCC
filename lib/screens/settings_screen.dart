@@ -70,13 +70,57 @@ class SettingsScreen extends StatelessWidget {
                 onChanged: vision.setVibrationEnabled,
               ),
               const Divider(height: 1),
+              _SwitchRow(
+                icon: Icons.fullscreen_rounded,
+                title: 'Alerta em tela cheia',
+                subtitle: 'A tela inteira pisca em vermelho com o botão "Estou acordado" '
+                    '(silencia por 10 s).',
+                value: s.fullScreenAlert,
+                onChanged: (v) {
+                  s.fullScreenAlert = v;
+                  vision.saveSettings();
+                },
+              ),
+              const Divider(height: 1),
+              _SwitchRow(
+                icon: Icons.trending_up_rounded,
+                title: 'Alerta progressivo',
+                subtitle: 'Se o alerta continuar por mais de ${formatSeconds(escalateAfterMs)} s, troca o bipe '
+                    'por uma sirene mais rápida e a vibração fica longa e forte.',
+                value: s.escalatingAlert,
+                onChanged: (v) {
+                  s.escalatingAlert = v;
+                  vision.saveSettings();
+                },
+              ),
+              const Divider(height: 1),
               Padding(
                 padding: const EdgeInsets.all(14),
-                child: OutlinedButton.icon(
-                  key: const Key('button-testar-alerta'),
-                  onPressed: () => vision.playAlertFeedback(force: true),
-                  icon: const Icon(Icons.play_arrow_rounded, color: AppColors.amber),
-                  label: const Text('Testar alerta'),
+                child: Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const Key('button-testar-alerta'),
+                      onPressed: () => vision.playAlertFeedback(force: true),
+                      icon: const Icon(Icons.play_arrow_rounded, color: AppColors.amber),
+                      label: const FittedBox(child: Text('Testar alerta')),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => vision.playAlertFeedback(force: true, intense: true),
+                      icon: const Icon(Icons.campaign_rounded, color: AppColors.red),
+                      label: const FittedBox(child: Text('Testar sirene')),
+                    ),
+                  ),
+                ]),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(14, 0, 14, 14),
+                child: Text(
+                  'O som toca no canal de alarme do celular (e no iPhone mesmo no modo silencioso). '
+                  'Ajuste o volume de alarme do aparelho.',
+                  style: TextStyle(color: AppColors.muted, fontSize: 11, height: 1.4),
                 ),
               ),
             ]),
@@ -120,6 +164,100 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => CalibrationScreen(vision: vision, onlyStep: 3),
                 )),
+              ),
+            ]),
+
+            // ------------------------------------------------------------ cabeça e rosto
+            const _SectionLabel(icon: Icons.face_retouching_natural, text: 'CABEÇA E ROSTO'),
+            _Card(children: [
+              _SwitchRow(
+                icon: Icons.airline_seat_flat_angled_outlined,
+                title: 'Detectar cabeça caindo',
+                subtitle: 'Alerta quando a cabeça pende para frente ou para o lado (cochilo), mesmo '
+                    'que os olhos não sejam bem vistos.',
+                value: s.headEnabled,
+                onChanged: (v) {
+                  s.headEnabled = v;
+                  vision.saveSettings();
+                },
+              ),
+              const Divider(height: 1),
+              _SliderRow(
+                title: 'Inclinação para alertar',
+                description: 'Quantos graus a cabeça precisa baixar em relação à sua posição normal '
+                    '(medida na calibração). Inclinação lateral acima de ${headTiltDeg.round()}° também conta.',
+                valueLabel: '${s.headDropDeg.round()}°',
+                value: s.headDropDeg,
+                min: 10,
+                max: 40,
+                divisions: 30,
+                enabled: s.headEnabled,
+                onChanged: (v) {
+                  s.headDropDeg = v.roundToDouble();
+                  vision.refresh();
+                },
+                onChangeEnd: (_) => vision.saveSettings(),
+              ),
+              const Divider(height: 1),
+              _SliderRow(
+                title: 'Tempo com a cabeça caída',
+                description: 'Tempo contínuo com a cabeça inclinada até o ALERTA. '
+                    'ATENÇÃO aparece na metade do tempo.',
+                valueLabel: '${formatSeconds(s.headAlertMs)} s',
+                value: s.headAlertMs.toDouble(),
+                min: 800,
+                max: 4000,
+                divisions: 32,
+                enabled: s.headEnabled,
+                onChanged: (v) {
+                  s.headAlertMs = v.round();
+                  vision.refresh();
+                },
+                onChangeEnd: (_) => vision.saveSettings(),
+              ),
+              const Divider(height: 1),
+              _SwitchRow(
+                icon: Icons.no_accounts_outlined,
+                title: 'Avisar rosto fora da câmera',
+                subtitle: 'Se o rosto some da câmera (cabeça caída, olhando para baixo, celular '
+                    'mal posicionado), o app avisa.',
+                value: s.faceLostEnabled,
+                onChanged: (v) {
+                  s.faceLostEnabled = v;
+                  vision.saveSettings();
+                },
+              ),
+              const Divider(height: 1),
+              _SliderRow(
+                title: 'Tempo sem rosto para alertar',
+                description: 'ATENÇÃO aparece na metade do tempo; o ALERTA, ao completar.',
+                valueLabel: '${formatSeconds(s.faceLostAlertMs)} s',
+                value: s.faceLostAlertMs.toDouble(),
+                min: 2000,
+                max: 10000,
+                divisions: 16,
+                enabled: s.faceLostEnabled,
+                onChanged: (v) {
+                  s.faceLostAlertMs = v.round();
+                  vision.refresh();
+                },
+                onChangeEnd: (_) => vision.saveSettings(),
+              ),
+            ]),
+
+            // ------------------------------------------------------------ tela
+            const _SectionLabel(icon: Icons.screen_rotation_outlined, text: 'TELA'),
+            _Card(children: [
+              _SwitchRow(
+                icon: Icons.stay_current_landscape_outlined,
+                title: 'Permitir modo deitado',
+                subtitle: 'Para usar o celular na horizontal, no suporte do carro. O painel ao vivo '
+                    'mostra a câmera e as métricas lado a lado.',
+                value: s.allowLandscape,
+                onChanged: (v) {
+                  s.allowLandscape = v;
+                  vision.saveSettings();
+                },
               ),
             ]),
 
@@ -284,7 +422,8 @@ class SettingsScreen extends StatelessWidget {
               onPressed: () => _confirm(
                 context,
                 title: 'Restaurar padrões?',
-                body: 'Som, vibração, filtro de sorriso e tempos dos alertas voltam aos valores originais. '
+                body: 'Som, vibração, alertas, filtro de sorriso, cabeça/rosto, modo deitado e tempos voltam '
+                    'aos valores originais. '
                     'A calibração é mantida.',
                 action: 'Restaurar',
                 onOk: () async {

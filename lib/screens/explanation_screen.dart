@@ -35,9 +35,19 @@ class ExplanationScreen extends StatelessWidget {
       (Icons.record_voice_over_outlined, AppColors.blue, 'Bocejo sustentado',
           'Só é bocejo se o MAR ficar acima do limiar de forma contínua por 1,8 s. Falar e rir abrem a boca '
               'por pouco tempo e são ignorados (tolerância de 150 ms para falhas de detecção).'),
+      (Icons.airline_seat_flat_angled_outlined, AppColors.red, 'Cabeça caindo',
+          'O detector informa os ângulos da cabeça. Se ela baixa 20° (ajustável) em relação à posição '
+              'normal medida na calibração — ou tomba mais de 30° para o lado — por 1,5 s, é ALERTA: '
+              'é o "cochilo" típico, que pode acontecer antes de os olhos fecharem por completo.'),
+      (Icons.no_accounts_outlined, AppColors.red, 'Rosto fora da câmera',
+          'Se o rosto some por 2 s aparece ATENÇÃO; por 4 s, ALERTA. Cobre a cabeça caída para fora do '
+              'quadro e o celular mal posicionado.'),
+      (Icons.campaign_outlined, AppColors.amber, 'Alerta progressivo',
+          'O alerta começa com bipe, vibração e tela cheia piscando. Se continuar por mais de 4 s, vira '
+              'sirene rápida com vibração longa. O botão "Estou acordado" silencia por 10 s.'),
       (Icons.graphic_eq, AppColors.green, 'Suavização e histerese',
           'EAR e MAR passam por uma média móvel dos últimos quadros para evitar ruído. Depois de um alerta, '
-              'o sistema só volta ao NORMAL após 1 s contínuo de olhos abertos e boca neutra.'),
+              'o sistema só volta ao NORMAL após 1 s contínuo de olhos abertos, boca neutra e cabeça erguida.'),
       (Icons.center_focus_strong_outlined, AppColors.amber, 'Calibração pessoal',
           'Limiar EAR = fechado + 28% × (aberto − fechado). Limiar MAR = 72% do bocejo, refinado pelo '
               'sorriso. Tudo fica salvo no aparelho e pode ser ajustado em Configurações.'),

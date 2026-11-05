@@ -2,10 +2,19 @@ import 'package:fatigue_guard/vision/fatigue_engine.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Simula quadros a ~30 FPS e devolve a última métrica.
-FatigueMetrics run(FatigueEngine e, {required int from, required int to, required double ear, double mar = 0.1}) {
+FatigueMetrics run(FatigueEngine e,
+    {required int from, required int to, required double ear, double mar = 0.1, double? pitch, double? roll}) {
   var m = FatigueMetrics.empty;
   for (var t = from; t <= to; t += 33) {
-    m = e.process(ear, mar, t);
+    m = e.process(ear, mar, t, pitch: pitch, roll: roll);
+  }
+  return m;
+}
+
+FatigueMetrics runNoFace(FatigueEngine e, {required int from, required int to}) {
+  var m = FatigueMetrics.empty;
+  for (var t = from; t <= to; t += 33) {
+    m = e.noFace(t);
   }
   return m;
 }
@@ -103,5 +112,75 @@ void main() {
     final m = run(e, from: 1, to: 3000, ear: 0.12, mar: 0.40);
     expect(m.expression, isFalse);
     expect(m.alert, isTrue);
+  });
+
+  group('cabeça caindo', () {
+    test('queda de 25° por mais de 1,5 s → ALERTA (motivo: cabeça)', () {
+      final e = FatigueEngine(Thresholds())..setHeadBaseline(5, 0);
+      run(e, from: 1, to: 1000, ear: 0.30, pitch: 5, roll: 0);
+      var m = run(e, from: 1033, to: 1900, ear: 0.30, pitch: -20, roll: 0); // ~0,9 s
+      expect(m.alert, isFalse);
+      expect(m.classify(e.settings).status, FatigueStatus.attention);
+      expect(m.headPitch, closeTo(25, 1e-9));
+      m = run(e, from: 1933, to: 2700, ear: 0.30, pitch: -20, roll: 0);
+      expect(m.alert, isTrue);
+      expect(m.alertReason, AlertReason.head);
+      expect(m.classify(e.settings).notice, contains('cabeça'));
+    });
+
+    test('inclinação lateral forte também conta', () {
+      final e = FatigueEngine(Thresholds())..setHeadBaseline(0, 0);
+      final m = run(e, from: 1, to: 2000, ear: 0.30, pitch: 0, roll: 40);
+      expect(m.alertReason, AlertReason.head);
+    });
+
+    test('pequenos movimentos não alertam e desligar a opção ignora a cabeça', () {
+      final e = FatigueEngine(Thresholds())..setHeadBaseline(0, 0);
+      expect(run(e, from: 1, to: 3000, ear: 0.30, pitch: -10, roll: 8).alert, isFalse);
+      final off = FatigueEngine(Thresholds(), DetectionSettings()..headEnabled = false)..setHeadBaseline(0, 0);
+      expect(run(off, from: 1, to: 3000, ear: 0.30, pitch: -35, roll: 0).alert, isFalse);
+    });
+
+    test('sem calibração, a primeira posição vira a referência', () {
+      final e = FatigueEngine(Thresholds());
+      run(e, from: 1, to: 500, ear: 0.30, pitch: 12, roll: 0);
+      expect(e.basePitch, closeTo(12, 0.5));
+    });
+  });
+
+  group('rosto fora da câmera', () {
+    test('sem rosto por 4 s → ALERTA; atenção na metade', () {
+      final e = FatigueEngine(Thresholds());
+      run(e, from: 1, to: 1000, ear: 0.30);
+      var m = runNoFace(e, from: 1033, to: 3300); // ~2,3 s
+      expect(m.faceVisible, isFalse);
+      expect(m.classify(e.settings).status, FatigueStatus.attention);
+      m = runNoFace(e, from: 3333, to: 5200);
+      expect(m.alert, isTrue);
+      expect(m.alertReason, AlertReason.faceLost);
+    });
+
+    test('antes do rosto aparecer pela primeira vez não alerta', () {
+      final e = FatigueEngine(Thresholds());
+      expect(runNoFace(e, from: 1, to: 9000).alert, isFalse);
+    });
+
+    test('rosto volta: sai do alerta após 1 s estável', () {
+      final e = FatigueEngine(Thresholds());
+      run(e, from: 1, to: 500, ear: 0.30);
+      runNoFace(e, from: 533, to: 5000);
+      var m = run(e, from: 5033, to: 5600, ear: 0.30);
+      expect(m.alert, isTrue);
+      m = run(e, from: 5633, to: 6800, ear: 0.30);
+      expect(m.alert, isFalse);
+    });
+  });
+
+  test('alertSinceMs cresce enquanto o alerta continua (alerta progressivo)', () {
+    final e = FatigueEngine(Thresholds());
+    run(e, from: 1, to: 500, ear: 0.30);
+    final m = run(e, from: 533, to: 7000, ear: 0.10);
+    expect(m.alert, isTrue);
+    expect(m.alertSinceMs, greaterThanOrEqualTo(escalateAfterMs));
   });
 }

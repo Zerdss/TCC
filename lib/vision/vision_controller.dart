@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:vibration/vibration.dart';
 
 import '../data/calibration_store.dart';
 import '../data/models.dart';
@@ -201,6 +202,8 @@ class VisionController extends ChangeNotifier {
   void beginMonitoring() {
     calibrationStep = null;
     engine.reset();
+    final hp = thresholds.headPitch, hr = thresholds.headRoll;
+    if (hp != null && hr != null) engine.setHeadBaseline(hp, hr);
     earHistory.clear();
     marHistory.clear();
     perclosHistory.clear();
@@ -262,18 +265,51 @@ class VisionController extends ChangeNotifier {
     _notify();
   }
 
-  /// Toca o som e a vibração de alerta (também usado no botão "Testar alerta").
-  Future<void> playAlertFeedback({bool force = false}) async {
+  /// Toca o som e a vibração de alerta (também usado nos botões de teste).
+  /// [intense] = sirene + vibração longa (alerta progressivo).
+  Future<void> playAlertFeedback({bool force = false, bool intense = false}) async {
     if (soundEnabled || force) {
       try {
-        _player ??= AudioPlayer()..setReleaseMode(ReleaseMode.stop);
+        _player ??= await _createPlayer();
         await _player!.stop();
-        await _player!.play(AssetSource('sounds/alerta.wav'), volume: 1);
+        await _player!.play(AssetSource(intense ? 'sounds/sirene.wav' : 'sounds/alerta.wav'), volume: 1);
       } catch (e) {
         SystemSound.play(SystemSoundType.alert);
       }
     }
-    if (vibrationEnabled || force) HapticFeedback.vibrate();
+    if (vibrationEnabled || force) {
+      try {
+        if (await Vibration.hasVibrator()) {
+          await Vibration.vibrate(
+            pattern: intense ? [0, 600, 120, 600] : [0, 350],
+            intensities: intense ? [0, 255, 0, 255] : [0, 200],
+          );
+        } else {
+          HapticFeedback.heavyImpact();
+        }
+      } catch (_) {
+        HapticFeedback.vibrate();
+      }
+    }
+  }
+
+  /// Toca no canal de ALARME (Android) e mesmo com o iPhone no silencioso,
+  /// para o alerta ser ouvido com a música do carro tocando.
+  Future<AudioPlayer> _createPlayer() async {
+    final player = AudioPlayer();
+    await player.setReleaseMode(ReleaseMode.stop);
+    await player.setAudioContext(AudioContext(
+      android: const AudioContextAndroid(
+        contentType: AndroidContentType.sonification,
+        usageType: AndroidUsageType.alarm,
+        audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+      ),
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.playback,
+        options: const {AVAudioSessionOptions.duckOthers},
+      ),
+    ));
+    return player;
   }
 
   void resetCalibration() {
@@ -288,7 +324,13 @@ class VisionController extends ChangeNotifier {
   Future<bool> loadSavedCalibration() async {
     final saved = await calibrationStore?.load();
     if (saved == null) return false;
-    thresholds.restore(ear: saved.ear, mar: saved.mar, marNeutral: saved.marNeutral);
+    thresholds.restore(
+      ear: saved.ear,
+      mar: saved.mar,
+      marNeutral: saved.marNeutral,
+      headPitch: saved.headPitch,
+      headRoll: saved.headRoll,
+    );
     engine.reset();
     return true;
   }
@@ -317,6 +359,8 @@ class VisionController extends ChangeNotifier {
       if (input == null) return;
       final faces = await _detector!.processImage(input);
       if (_disposed) return;
+      final orientation = camera?.value.deviceOrientation;
+      if (orientation != null) _trackRotationFix(faces.isNotEmpty, orientation);
       final now = _clock.elapsedMilliseconds + 1;
       _handleFaces(faces, input.metadata!, now);
       _fpsFrames++;
@@ -341,6 +385,7 @@ class VisionController extends ChangeNotifier {
     if (faces.isEmpty) {
       overlay = null;
       guide = const FramingGuide('Rosto não detectado — enquadre-se na câmera', false);
+      if (calibrationStep == null) _applyMonitoring(engine.noFace(now), now);
       return;
     }
     // Rosto mais próximo (maior caixa).
@@ -380,16 +425,33 @@ class VisionController extends ChangeNotifier {
 
     final smooth = engine.smooth((leftEar + rightEar) / 2, rawMar);
 
+    final pitch = face.headEulerAngleX;
+    final roll = face.headEulerAngleZ;
+
     final step = calibrationStep;
     if (step != null) {
-      final finished = _sampler.add(smooth.ear, smooth.mar);
+      final finished = _sampler.add(smooth.ear, smooth.mar, pitch: pitch, roll: roll);
       calibrationProgress = _sampler.progress;
-      if (finished) thresholds.applyCalibration(step, _sampler.medianEar, _sampler.medianMar);
+      if (finished) {
+        thresholds.applyCalibration(step, _sampler.medianEar, _sampler.medianMar);
+        // Etapa "olhos abertos": guarda a posição normal da cabeça.
+        final p = _sampler.medianPitch, r = _sampler.medianRoll;
+        if (step == 0 && p != null && r != null) {
+          engine.setHeadBaseline(p, r);
+          thresholds.headPitch = p;
+          thresholds.headRoll = r;
+        }
+      }
       metrics = FatigueMetrics(ear: smooth.ear, mar: smooth.mar);
       return;
     }
 
-    metrics = engine.process(smooth.ear, smooth.mar, now);
+    _applyMonitoring(engine.process(smooth.ear, smooth.mar, now, pitch: pitch, roll: roll), now);
+  }
+
+  /// Atualiza status, histórico da sessão, gráficos e alertas a partir das métricas.
+  void _applyMonitoring(FatigueMetrics m, int now) {
+    metrics = m;
     final result = metrics.classify(engine.settings);
     status = result.status;
     notice = result.notice;
@@ -406,15 +468,42 @@ class VisionController extends ChangeNotifier {
 
     if (now - _lastHistory >= 250) {
       _lastHistory = now;
-      _pushHistory(earHistory, smooth.ear);
-      _pushHistory(marHistory, smooth.mar);
+      _pushHistory(earHistory, m.ear);
+      _pushHistory(marHistory, m.mar);
       _pushHistory(perclosHistory, metrics.perclos);
     }
-    if (status == FatigueStatus.alert && now - _lastAlertFeedback >= 1500) {
+
+    if (status != FatigueStatus.alert) {
+      _ackUntil = 0;
+      alertLevel = 0;
+      return;
+    }
+    // Alerta progressivo: depois de alguns segundos em alerta, fica mais intenso.
+    alertLevel = settings.escalatingAlert && m.alertSinceMs >= escalateAfterMs ? 2 : 1;
+    final interval = alertLevel == 2 ? 750 : 1500;
+    if (!alertAcknowledged(now) && now - _lastAlertFeedback >= interval) {
       _lastAlertFeedback = now;
-      playAlertFeedback();
+      playAlertFeedback(intense: alertLevel == 2);
     }
   }
+
+  /// 1 = alerta normal; 2 = alerta intensificado (sirene + vibração longa).
+  int alertLevel = 0;
+  int _ackUntil = 0;
+
+  /// O motorista tocou em "Estou acordado": silencia e esconde a tela cheia por 10 s.
+  bool alertAcknowledged([int? now]) => (now ?? _clock.elapsedMilliseconds + 1) < _ackUntil;
+
+  void acknowledgeAlert() {
+    _ackUntil = _clock.elapsedMilliseconds + 10000;
+    _player?.stop();
+    Vibration.cancel();
+    _notify();
+  }
+
+  /// Mostra o alerta em tela cheia no painel?
+  bool get showFullScreenAlert =>
+      status == FatigueStatus.alert && settings.fullScreenAlert && calibrationStep == null && !alertAcknowledged();
 
   void _pushHistory(List<double> list, double value) {
     list.add(value);
@@ -440,23 +529,49 @@ class VisionController extends ChangeNotifier {
     DeviceOrientation.landscapeRight: 270,
   };
 
+  /// Correção extra de rotação (graus) usada só com o celular deitado. Cada
+  /// aparelho entrega a imagem num ângulo diferente; se o rosto some por vários
+  /// quadros em paisagem, testamos 0°, 90°, 180° e 270° até reencontrá-lo.
+  int _rotationFix = 0;
+  int _framesWithoutFace = 0;
+  DeviceOrientation? _lastOrientation;
+
+  void _trackRotationFix(bool found, DeviceOrientation orientation) {
+    if (orientation != _lastOrientation) {
+      _lastOrientation = orientation;
+      _rotationFix = 0;
+      _framesWithoutFace = 0;
+    }
+    if (found || orientation == DeviceOrientation.portraitUp) {
+      _framesWithoutFace = 0;
+      return;
+    }
+    if (++_framesWithoutFace >= 20) {
+      _framesWithoutFace = 0;
+      _rotationFix = (_rotationFix + 90) % 360;
+    }
+  }
+
   InputImage? _toInputImage(CameraImage image) {
     final controller = camera;
     final description = _description;
     if (controller == null || description == null) return null;
 
     final sensor = description.sensorOrientation;
-    InputImageRotation? rotation;
-    if (Platform.isIOS) {
-      rotation = InputImageRotationValue.fromRawValue(sensor);
+    final orientation = controller.value.deviceOrientation;
+    final portrait = orientation == DeviceOrientation.portraitUp;
+    int degrees;
+    if (Platform.isIOS && portrait) {
+      degrees = sensor;
     } else {
-      final device = _orientations[controller.value.deviceOrientation];
+      final device = _orientations[orientation];
       if (device == null) return null;
-      final compensated = description.lensDirection == CameraLensDirection.front
+      degrees = description.lensDirection == CameraLensDirection.front
           ? (sensor + device) % 360
           : (sensor - device + 360) % 360;
-      rotation = InputImageRotationValue.fromRawValue(compensated);
     }
+    if (!portrait) degrees = (degrees + _rotationFix) % 360;
+    final rotation = InputImageRotationValue.fromRawValue(degrees);
     if (rotation == null) return null;
 
     final format = InputImageFormatValue.fromRawValue(image.format.raw);

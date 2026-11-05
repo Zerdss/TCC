@@ -5,7 +5,7 @@ String _num(double v, [int digits = 4]) => v.toStringAsFixed(digits);
 /// CSV (separador `;`, padrão do Excel em português) com uma linha por sessão.
 String sessionsToCsv(List<SessionRecord> sessions) {
   final b = StringBuffer(
-      'id;inicio;fim;duracao_s;alertas_olhos;alertas_bocejo;avisos_atencao;perclos_max;'
+      'id;inicio;fim;duracao_s;alertas_olhos;alertas_bocejo;alertas_cabeca;alertas_rosto_ausente;avisos_atencao;perclos_max;'
       'piscadas_por_min_media;limiar_ear;limiar_mar;calibrado\n');
   for (final s in sessions) {
     b.writeln([
@@ -15,6 +15,8 @@ String sessionsToCsv(List<SessionRecord> sessions) {
       _num(s.duration.inMilliseconds / 1000, 1),
       s.alertsEyes,
       s.alertsYawn,
+      s.alertsHead,
+      s.alertsFace,
       s.attentionCount,
       _num(s.maxPerclos),
       _num(s.avgBlinkRate, 1),
