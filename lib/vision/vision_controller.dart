@@ -284,12 +284,50 @@ class VisionController extends ChangeNotifier {
   }
 
   // ------------------------------------------------------------------ calibração
-  void beginCalibration(int step) {
+  /// Inicia uma etapa de calibração. Com [paused], a câmera continua ativa mas
+  /// as amostras só começam em [resumeCalibration] (ex.: após a contagem 3‑2‑1).
+  void beginCalibration(int step, {bool paused = false}) {
     endSession();
     calibrationStep = step;
     calibrationProgress = 0;
+    calibrationPaused = paused;
     _sampler.reset();
     _notify();
+  }
+
+  /// `true` enquanto a etapa espera a contagem regressiva terminar.
+  bool calibrationPaused = false;
+
+  void resumeCalibration() {
+    calibrationPaused = false;
+    _sampler.reset();
+    calibrationProgress = 0;
+    _notify();
+  }
+
+  AudioPlayer? _cuePlayer;
+
+  /// Sons curtos da calibração: `tick` (contagem) e `ok` (etapa concluída).
+  /// Tocam mesmo com o alerta sonoro desligado, porque guiam o usuário de olhos fechados.
+  Future<void> playCue(String name, {bool vibrate = false}) async {
+    try {
+      _cuePlayer ??= await _createPlayer();
+      await _cuePlayer!.stop();
+      await _cuePlayer!.play(AssetSource('sounds/$name.wav'), volume: 1);
+    } catch (_) {
+      SystemSound.play(SystemSoundType.click);
+    }
+    if (vibrate) {
+      try {
+        if (await Vibration.hasVibrator()) {
+          await Vibration.vibrate(pattern: [0, 120, 80, 220]);
+        } else {
+          HapticFeedback.mediumImpact();
+        }
+      } catch (_) {
+        HapticFeedback.mediumImpact();
+      }
+    }
   }
 
   void beginMonitoring() {
@@ -534,6 +572,10 @@ class VisionController extends ChangeNotifier {
 
     final step = calibrationStep;
     if (step != null) {
+      if (calibrationPaused) {
+        metrics = FatigueMetrics(ear: smooth.ear, mar: smooth.mar);
+        return;
+      }
       final finished = _sampler.add(smooth.ear, smooth.mar, pitch: pitch, roll: roll);
       calibrationProgress = _sampler.progress;
       if (finished) {
@@ -727,6 +769,7 @@ class VisionController extends ChangeNotifier {
     controller?.dispose();
     _detector?.close();
     _player?.dispose();
+    _cuePlayer?.dispose();
     super.dispose();
   }
 }

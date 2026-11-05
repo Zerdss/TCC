@@ -90,6 +90,9 @@ class DetectionSettings {
   /// Permite usar o celular deitado (paisagem), ex.: no suporte do carro.
   bool allowLandscape = false;
 
+  /// Calibração avança sozinha (com "plim" e vibração) ao concluir cada etapa.
+  bool autoAdvanceCalibration = true;
+
   /// ATENÇÃO aparece um pouco antes do alerta (mesma proporção do protótipo).
   int get eyesWarnMs => (eyesAlertMs * warnClosedMs / closedFatigueMs).round();
   int get mouthWarnMs => (yawnAlertMs * warnMouthMs / yawnMinMs).round();
@@ -109,6 +112,7 @@ class DetectionSettings {
     fullScreenAlert = true;
     escalatingAlert = true;
     allowLandscape = false;
+    autoAdvanceCalibration = true;
   }
 }
 

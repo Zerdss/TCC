@@ -8,7 +8,9 @@ Fluxo:
 - Câmera frontal + **Google ML Kit Face Detection** (contornos faciais), tudo no aparelho:
   nenhum quadro é salvo ou enviado pela rede.
 - **EAR** (olhos), **MAR** (boca) e **PERCLOS** (janela deslizante de 60 s).
-- Calibração pessoal: olhos abertos, olhos fechados, bocejo e sorriso (opcional).
+- Calibração pessoal: olhos abertos, olhos fechados, bocejo e sorriso (opcional). Cada etapa
+  começa com contagem 3‑2‑1 com bipes e termina com um "plim" + vibração; por padrão avança
+  sozinha (dá para fazer a etapa de olhos fechados sem olhar para a tela).
 - Lógica temporal: piscadas (0,08–0,4 s) não geram alerta; olhos fechados por 1,2 s
   ou bocejo sustentado por 1,8 s geram **ALERTA**; checagem cruzada EAR × MAR para
   sorriso/fala; histerese de 1 s para voltar ao normal.

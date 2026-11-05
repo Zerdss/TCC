@@ -18,6 +18,7 @@ class SettingsStore {
   static const _full = 'settings.fullScreenAlert';
   static const _escalate = 'settings.escalatingAlert';
   static const _landscape = 'settings.allowLandscape';
+  static const _autoCal = 'settings.autoAdvanceCalibration';
 
   Future<StoredSettings> load() async {
     final p = await SharedPreferences.getInstance();
@@ -36,6 +37,7 @@ class SettingsStore {
       fullScreenAlert: p.getBool(_full) ?? true,
       escalatingAlert: p.getBool(_escalate) ?? true,
       allowLandscape: p.getBool(_landscape) ?? false,
+      autoAdvanceCalibration: p.getBool(_autoCal) ?? true,
     );
   }
 
@@ -55,6 +57,7 @@ class SettingsStore {
     await p.setBool(_full, detection.fullScreenAlert);
     await p.setBool(_escalate, detection.escalatingAlert);
     await p.setBool(_landscape, detection.allowLandscape);
+    await p.setBool(_autoCal, detection.autoAdvanceCalibration);
   }
 }
 
@@ -74,6 +77,7 @@ class StoredSettings {
     required this.fullScreenAlert,
     required this.escalatingAlert,
     required this.allowLandscape,
+    this.autoAdvanceCalibration = true,
   });
 
   final bool sound;
@@ -90,6 +94,7 @@ class StoredSettings {
   final bool fullScreenAlert;
   final bool escalatingAlert;
   final bool allowLandscape;
+  final bool autoAdvanceCalibration;
 
   void applyTo(DetectionSettings d) {
     d
@@ -104,6 +109,7 @@ class StoredSettings {
       ..faceLostAlertMs = faceLostAlertMs
       ..fullScreenAlert = fullScreenAlert
       ..escalatingAlert = escalatingAlert
-      ..allowLandscape = allowLandscape;
+      ..allowLandscape = allowLandscape
+      ..autoAdvanceCalibration = autoAdvanceCalibration;
   }
 }

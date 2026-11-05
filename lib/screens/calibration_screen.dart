@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
@@ -7,27 +9,34 @@ import '../widgets/common.dart';
 import 'demo_screen.dart';
 
 class _Step {
-  const _Step(this.label, this.icon, this.instruction, this.tip);
+  const _Step(this.label, this.icon, this.instruction, this.tip, this.prepare);
   final String label;
   final IconData icon;
   final String instruction;
   final String tip;
+
+  /// Frase curta mostrada durante a contagem 3‑2‑1.
+  final String prepare;
 }
 
 const _steps = [
   _Step('OLHOS ABERTOS', Icons.visibility_outlined,
       'Mantenha o olhar natural e os olhos abertos por alguns segundos.',
-      'Olhe para a câmera como se estivesse olhando para a estrada.'),
+      'Olhe para a câmera como se estivesse olhando para a estrada.',
+      'Olhe para a câmera com os olhos abertos'),
   _Step('OLHOS FECHADOS', Icons.visibility_off_outlined,
       'Agora feche os olhos suavemente. O sistema está aprendendo seu limiar pessoal.',
-      'Mantenha o rosto parado; a barra avança sozinha.'),
+      'Mantenha o rosto parado. Abra os olhos quando ouvir o "plim" e sentir a vibração.',
+      'Feche os olhos e espere o "plim"'),
   _Step('BOCEJO DE TESTE', Icons.record_voice_over_outlined,
       'Abra a boca como em um bocejo lento e sustentado para registrar seu padrão de MAR.',
-      'Segure a boca bem aberta até a barra completar.'),
+      'Segure a boca bem aberta até ouvir o "plim".',
+      'Abra a boca como num bocejo'),
   _Step('SORRISO / RISADA', Icons.sentiment_very_satisfied_outlined,
       'Sorria e ria naturalmente por alguns segundos. Isso ensina o sistema a não confundir '
           'expressões normais com fadiga.',
-      'Etapa opcional — pode pular se preferir.'),
+      'Etapa opcional — pode pular se preferir.',
+      'Sorria e ria naturalmente'),
 ];
 
 class CalibrationScreen extends StatefulWidget {
@@ -47,30 +56,89 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   bool _leavingToDemo = false;
   late final bool _wasMonitoring = vision.isMonitoring;
 
+  /// Avança sozinho ao concluir cada etapa (útil na etapa de olhos fechados).
+  bool _auto = true;
+
+  /// Contagem regressiva antes de cada etapa (3, 2, 1). `null` = coletando.
+  int? _countdown;
+  Timer? _timer;
+  Timer? _advanceTimer;
+  bool _stepDone = false;
+
   VisionController get vision => widget.vision;
   bool get _single => widget.onlyStep != null;
 
   @override
   void initState() {
     super.initState();
-    vision.beginCalibration(step);
+    _auto = vision.settings.autoAdvanceCalibration;
     vision.acquireCamera();
+    vision.addListener(_onVision);
+    _startStep(step);
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
+    _advanceTimer?.cancel();
+    vision.removeListener(_onVision);
     // Se abriu por cima do painel ao vivo, devolve o painel ao monitoramento.
     if (_wasMonitoring && !_leavingToDemo) vision.beginMonitoring();
     vision.releaseCamera();
     super.dispose();
   }
 
+  /// Prepara a etapa: pausa a coleta e faz a contagem 3‑2‑1 com bipes.
+  void _startStep(int s) {
+    _timer?.cancel();
+    _advanceTimer?.cancel();
+    _stepDone = false;
+    vision.beginCalibration(s, paused: true);
+    setState(() => _countdown = 3);
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return t.cancel();
+      // Só conta com a câmera funcionando.
+      if (vision.state != EngineState.running) return;
+      final c = _countdown ?? 0;
+      if (c > 1) {
+        vision.playCue('tick');
+        setState(() => _countdown = c - 1);
+      } else {
+        t.cancel();
+        vision.playCue('tick');
+        setState(() => _countdown = null);
+        vision.resumeCalibration();
+      }
+    });
+  }
+
+  /// Detecta o fim da etapa: toca o "plim", vibra e (se automático) avança.
+  void _onVision() {
+    if (_stepDone || _countdown != null || vision.calibrationProgress < 100) return;
+    _stepDone = true;
+    vision.playCue('ok', vibrate: true);
+    if (_auto) {
+      _advanceTimer = Timer(const Duration(milliseconds: 1600), () {
+        if (mounted) _next();
+      });
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _setAuto(bool value) {
+    setState(() => _auto = value);
+    vision.settings.autoAdvanceCalibration = value;
+    vision.saveSettings();
+    if (value && _stepDone) _next();
+  }
+
   void _next() {
+    _advanceTimer?.cancel();
     if (_single) {
       _finishSingle();
     } else if (step < 3) {
       setState(() => step++);
-      vision.beginCalibration(step);
+      _startStep(step);
     } else {
       _openDemo();
     }
@@ -84,7 +152,10 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   }
 
   void _openDemo() {
+    if (_leavingToDemo) return;
     _leavingToDemo = true;
+    _timer?.cancel();
+    _advanceTimer?.cancel();
     vision.saveCalibration();
     vision.beginMonitoring();
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => DemoScreen(vision: vision)));
@@ -106,7 +177,32 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
           _StepIndicator(current: step),
           const SizedBox(height: 16),
         ],
-        CameraPanel(vision: vision),
+        Stack(
+          children: [
+            CameraPanel(vision: vision),
+            if (_countdown != null && vision.state == EngineState.running)
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    key: const Key('calibration-countdown'),
+                    color: const Color(0x99090D14),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(20),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Text('PREPARE-SE', style: AppText.kicker.copyWith(fontSize: 16)),
+                      const SizedBox(height: 4),
+                      Text('$_countdown',
+                          style: AppText.number.copyWith(fontSize: 120, height: 1, color: AppColors.amber)),
+                      const SizedBox(height: 8),
+                      Text(info.prepare,
+                          textAlign: TextAlign.center, style: AppText.h3.copyWith(fontSize: 22)),
+                    ]),
+                  ),
+                ),
+              ),
+          ],
+        ),
         const SizedBox(height: 16),
         ListenableBuilder(
           listenable: vision,
@@ -181,10 +277,14 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                       const SizedBox(height: 8),
                       Text(
                         done
-                            ? 'Padrão registrado com sucesso'
-                            : running
-                                ? 'Analisando padrão facial...'
-                                : 'Aguardando câmera...',
+                            ? (_auto
+                                ? 'Padrão registrado! ${_single || step == 3 ? 'Finalizando...' : 'Próxima etapa em instantes...'}'
+                                : 'Padrão registrado com sucesso')
+                            : !running
+                                ? 'Aguardando câmera...'
+                                : _countdown != null
+                                    ? 'Começando em $_countdown...'
+                                    : 'Analisando padrão facial...',
                         style: const TextStyle(color: AppColors.muted, fontSize: 12),
                       ),
                       if (running) ...[
@@ -208,6 +308,21 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                       : 'Aguardando leitura...',
                   icon: done ? Icons.arrow_forward : Icons.center_focus_weak,
                   onPressed: done ? _next : null,
+                ),
+                const SizedBox(height: 6),
+                SwitchListTile(
+                  key: const Key('switch-avancar-auto'),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  value: _auto,
+                  onChanged: _setAuto,
+                  title: const Text('Avançar automaticamente',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  subtitle: const Text(
+                    'Toca um "plim" e vibra ao concluir cada etapa e já passa para a próxima — '
+                    'não precisa abrir os olhos para tocar no botão.',
+                    style: TextStyle(color: AppColors.muted, fontSize: 11),
+                  ),
                 ),
                 if (step == 3 && !_single)
                   TextButton(
