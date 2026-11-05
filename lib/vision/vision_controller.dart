@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -104,10 +105,86 @@ class VisionController extends ChangeNotifier {
 
   bool get isFrontCamera => _description?.lensDirection == CameraLensDirection.front;
 
+  // ------------------------------------------------------------ diagnóstico
+  /// Formato pedido à câmera no Android. Começa em NV21; se o aparelho não
+  /// entregar quadros utilizáveis, troca para YUV_420 e converte aqui.
+  ImageFormatGroup _androidFormat = ImageFormatGroup.nv21;
+  int _framesReceived = 0;
+  int _framesProcessed = 0;
+  int _consecutiveFailures = 0;
+  int _runningSince = 0;
+  String _lastFrameError = '';
+  Timer? _watchdog;
+  bool _restarting = false;
+
+  /// Texto de diagnóstico exibido quando a câmera liga mas o detector não
+  /// processa nenhum quadro (para o usuário mandar um print).
+  String diagnostic = '';
+
+  void _resetDiagnostics() {
+    _framesReceived = 0;
+    _framesProcessed = 0;
+    _consecutiveFailures = 0;
+    _lastFrameError = '';
+    diagnostic = '';
+  }
+
+  void _frameFailed(String reason) {
+    _lastFrameError = reason;
+    _consecutiveFailures++;
+    debugPrint('Quadro não processado: $reason');
+    // Android: NV21 não funcionou neste aparelho → tenta YUV_420 convertido aqui.
+    if (Platform.isAndroid && _androidFormat == ImageFormatGroup.nv21 && _consecutiveFailures >= 12) {
+      _androidFormat = ImageFormatGroup.yuv420;
+      _restartCamera();
+    }
+  }
+
+  /// Verifica a cada segundo se o detector está respondendo.
+  void _checkHealth() {
+    if (state != EngineState.running || _restarting) return;
+    final elapsed = _clock.elapsedMilliseconds - _runningSince;
+    String text = '';
+    if (_framesProcessed == 0 && elapsed > 4000) {
+      text = _framesReceived == 0
+          ? 'A câmera ligou, mas não está enviando imagens para análise.'
+          : 'O detector não conseguiu analisar as imagens ($_framesReceived recebidas'
+              '${Platform.isAndroid ? ', formato ${_androidFormat.name}' : ''}). '
+              '${_lastFrameError.isEmpty ? '' : 'Erro: $_lastFrameError'}';
+    }
+    if (text != diagnostic) {
+      diagnostic = text;
+      if (text.isNotEmpty) guide = const FramingGuide('Detector sem resposta — veja a mensagem abaixo', false);
+      _notify();
+    }
+  }
+
+  Future<void> _restartCamera() async {
+    if (_restarting) return;
+    _restarting = true;
+    final controller = camera;
+    camera = null;
+    state = EngineState.idle;
+    _notify();
+    try {
+      if (controller != null) {
+        try {
+          if (controller.value.isStreamingImages) await controller.stopImageStream();
+        } catch (_) {}
+        await controller.dispose();
+      }
+    } finally {
+      _restarting = false;
+    }
+    if (!_disposed && _cameraUsers > 0) await start();
+  }
+
   Future<void> start() async {
     if (state == EngineState.loading || state == EngineState.running) return;
     state = EngineState.loading;
     error = '';
+    _resetDiagnostics();
+    guide = const FramingGuide('Iniciando câmera local...', false);
     _notify();
     try {
       final cameras = await availableCameras();
@@ -122,7 +199,7 @@ class VisionController extends ChangeNotifier {
         _description!,
         ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
+        imageFormatGroup: Platform.isAndroid ? _androidFormat : ImageFormatGroup.bgra8888,
       );
       await controller.initialize();
       _detector ??= FaceDetector(
@@ -141,6 +218,9 @@ class VisionController extends ChangeNotifier {
       _fpsStart = _clock.elapsedMilliseconds;
       await controller.startImageStream(_onFrame);
       state = EngineState.running;
+      _runningSince = _clock.elapsedMilliseconds;
+      _watchdog?.cancel();
+      _watchdog = Timer.periodic(const Duration(seconds: 1), (_) => _checkHealth());
       _notify();
     } on CameraException catch (e) {
       _fail(e.code == 'CameraAccessDenied' || e.code == 'CameraAccessDeniedWithoutPrompt'
@@ -171,6 +251,8 @@ class VisionController extends ChangeNotifier {
 
   Future<void> stop() async {
     await endSession();
+    _watchdog?.cancel();
+    _watchdog = null;
     final controller = camera;
     camera = null;
     state = EngineState.idle;
@@ -352,13 +434,22 @@ class VisionController extends ChangeNotifier {
 
   // ------------------------------------------------------------------ quadros
   Future<void> _onFrame(CameraImage image) async {
-    if (_busy || _detector == null || _description == null) return;
+    _framesReceived++;
+    if (_busy || _detector == null || _description == null || _restarting) return;
     _busy = true;
     try {
       final input = _toInputImage(image);
-      if (input == null) return;
-      final faces = await _detector!.processImage(input);
+      if (input == null) {
+        _frameFailed('formato ${image.format.group.name} (${image.format.raw}), '
+            '${image.planes.length} plano(s), ${image.width}x${image.height}');
+        return;
+      }
+      // Proteção: se o detector travar, libera para o próximo quadro.
+      final faces = await _detector!.processImage(input).timeout(const Duration(seconds: 3));
       if (_disposed) return;
+      _consecutiveFailures = 0;
+      _framesProcessed++;
+      if (diagnostic.isNotEmpty) diagnostic = '';
       final orientation = camera?.value.deviceOrientation;
       if (orientation != null) _trackRotationFix(faces.isNotEmpty, orientation);
       final now = _clock.elapsedMilliseconds + 1;
@@ -370,8 +461,10 @@ class VisionController extends ChangeNotifier {
         _fpsStart = now;
       }
       _notify();
+    } on TimeoutException {
+      _frameFailed('o detector demorou mais de 3 s para responder');
     } catch (e) {
-      debugPrint('Erro no processamento do quadro: $e');
+      _frameFailed(e.toString().split('\n').first);
     } finally {
       _busy = false;
     }
@@ -574,24 +667,38 @@ class VisionController extends ChangeNotifier {
     final rotation = InputImageRotationValue.fromRawValue(degrees);
     if (rotation == null) return null;
 
-    final format = InputImageFormatValue.fromRawValue(image.format.raw);
-    if (format == null ||
-        (Platform.isAndroid && format != InputImageFormat.nv21) ||
-        (Platform.isIOS && format != InputImageFormat.bgra8888)) {
-      return null;
-    }
-    // NV21 (Android) e BGRA8888 (iOS) chegam em um único plano contíguo.
     if (image.planes.isEmpty) return null;
-    final plane = image.planes.first;
+    final size = Size(image.width.toDouble(), image.height.toDouble());
 
+    if (Platform.isAndroid) {
+      // YUV_420 em 3 planos (fallback, ou aparelhos que ignoram o pedido de NV21):
+      // converte para NV21, o formato que o ML Kit aceita.
+      if (image.planes.length >= 3) {
+        return InputImage.fromBytes(
+          bytes: yuv420ToNv21(image.width, image.height, [
+            for (final p in image.planes.take(3)) YuvPlane(p.bytes, p.bytesPerRow, p.bytesPerPixel ?? 1),
+          ]),
+          metadata: InputImageMetadata(
+              size: size, rotation: rotation, format: InputImageFormat.nv21, bytesPerRow: image.width),
+        );
+      }
+      final plane = image.planes.first;
+      final needed = image.width * image.height * 3 ~/ 2;
+      if (plane.bytes.length < needed) return null;
+      return InputImage.fromBytes(
+        bytes: plane.bytes,
+        metadata: InputImageMetadata(
+            size: size, rotation: rotation, format: InputImageFormat.nv21, bytesPerRow: image.width),
+      );
+    }
+
+    // iOS: BGRA8888 em um único plano.
+    final format = InputImageFormatValue.fromRawValue(image.format.raw is int ? image.format.raw as int : -1) ??
+        InputImageFormat.bgra8888;
+    final plane = image.planes.first;
     return InputImage.fromBytes(
       bytes: plane.bytes,
-      metadata: InputImageMetadata(
-        size: Size(image.width.toDouble(), image.height.toDouble()),
-        rotation: rotation,
-        format: format,
-        bytesPerRow: plane.bytesPerRow,
-      ),
+      metadata: InputImageMetadata(size: size, rotation: rotation, format: format, bytesPerRow: plane.bytesPerRow),
     );
   }
 
@@ -601,6 +708,7 @@ class VisionController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _watchdog?.cancel();
     endSession();
     _disposed = true;
     final controller = camera;
@@ -610,4 +718,38 @@ class VisionController extends ChangeNotifier {
     _player?.dispose();
     super.dispose();
   }
+}
+
+/// Converte YUV_420_888 (3 planos, com row/pixel stride) para NV21
+/// (Y seguido de V e U intercalados), formato aceito pelo ML Kit no Android.
+class YuvPlane {
+  const YuvPlane(this.bytes, this.rowStride, this.pixelStride);
+  final Uint8List bytes;
+  final int rowStride;
+  final int pixelStride;
+}
+
+Uint8List yuv420ToNv21(int width, int height, List<YuvPlane> planes) {
+  final ySize = width * height;
+  final out = Uint8List(ySize + 2 * ((width + 1) ~/ 2) * ((height + 1) ~/ 2));
+  final y = planes[0];
+  if (y.rowStride == width) {
+    out.setRange(0, ySize, y.bytes);
+  } else {
+    for (var row = 0; row < height; row++) {
+      out.setRange(row * width, row * width + width, y.bytes, row * y.rowStride);
+    }
+  }
+  final u = planes[1], v = planes[2];
+  final uPixel = u.pixelStride, vPixel = v.pixelStride;
+  var i = ySize;
+  for (var row = 0; row < height ~/ 2; row++) {
+    final uRow = row * u.rowStride, vRow = row * v.rowStride;
+    for (var col = 0; col < width ~/ 2; col++) {
+      final vi = vRow + col * vPixel, ui = uRow + col * uPixel;
+      out[i++] = vi < v.bytes.length ? v.bytes[vi] : 128;
+      out[i++] = ui < u.bytes.length ? u.bytes[ui] : 128;
+    }
+  }
+  return out;
 }

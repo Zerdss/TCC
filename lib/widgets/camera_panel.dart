@@ -40,7 +40,33 @@ class CameraPanel extends StatelessWidget {
                   CustomPaint(painter: _OverlayPainter(vision.overlay, mirror: vision.isFrontCamera)),
                   if (vision.state == EngineState.running)
                     Positioned(top: 10, left: 10, right: 10, child: _GuideBadge(guide: vision.guide)),
-                  const Positioned(left: 12, bottom: 12, child: _LocalLabel()),
+                  if (vision.diagnostic.isEmpty)
+                    const Positioned(left: 12, bottom: 12, child: _LocalLabel())
+                  else
+                    Positioned(
+                      left: 10,
+                      right: 10,
+                      bottom: 10,
+                      child: Container(
+                        key: const Key('camera-diagnostic'),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xEE090D14),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.red),
+                        ),
+                        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Icon(Icons.bug_report_outlined, color: AppColors.red, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${vision.diagnostic}\nTire um print desta tela e envie para o suporte.',
+                              style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 11, height: 1.35),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
                 ],
               ),
             ),
