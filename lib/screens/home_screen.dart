@@ -212,19 +212,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 10),
         ],
-        const SizedBox(height: 16),
-        const Divider(),
-        const SizedBox(height: 10),
-        const Row(children: [
-          Icon(Icons.science_outlined, color: AppColors.muted, size: 16),
-          SizedBox(width: 7),
-          Expanded(
-            child: Text(
-              'Demonstração conceitual • O protótipo embarcado roda separadamente em Raspberry Pi.',
-              style: TextStyle(color: AppColors.muted, fontSize: 11),
-            ),
-          ),
-        ]),
       ],
     );
   }
