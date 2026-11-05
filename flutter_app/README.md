@@ -15,6 +15,40 @@ Ela segue o mesmo fluxo e a mesma lógica do protótipo web em `../frontend`:
 - Status em 3 níveis (NORMAL / ATENÇÃO / ALERTA DE SONOLÊNCIA), alerta sonoro e vibração
   (podem ser desligados), tela sempre ligada durante o monitoramento.
 
+## Dados salvos no aparelho
+
+Nada sai do celular. Só números e horários são gravados — **nunca imagens**.
+
+| O quê | Onde | Para quê |
+|---|---|---|
+| Limiares da calibração (EAR, MAR, faixa neutra, data) | `shared_preferences` | Botão **"Usar calibração salva"** na tela inicial, sem recalibrar toda vez |
+| Histórico de sessões e alertas | **SQLite** (`sqflite`), arquivo `fatigue_guard.db` | Tela **Histórico de sessões**, detalhes com linha do tempo e **exportação CSV** |
+
+Uma sessão começa no primeiro quadro do painel ao vivo e termina ao sair do painel,
+recalibrar ou minimizar o app. Sessões com menos de 10 s são descartadas.
+
+Esquema do banco:
+
+```sql
+CREATE TABLE sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at TEXT, ended_at TEXT, duration_s REAL,
+  alerts_eyes INTEGER, alerts_yawn INTEGER, attention_count INTEGER,
+  max_perclos REAL, avg_blink_rate REAL,
+  ear_threshold REAL, mar_threshold REAL, calibrated INTEGER
+);
+CREATE TABLE events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE,
+  time TEXT, type TEXT,            -- eyes | yawn | attention
+  ear REAL, mar REAL, perclos REAL
+);
+```
+
+A exportação gera dois arquivos (`sessoes_*.csv` e `alertas_*.csv`, separador `;`,
+abrem direto no Excel/Planilhas) e abre o menu de compartilhar do celular — útil para
+montar tabelas e gráficos no capítulo de resultados do TCC.
+
 ## Como rodar
 
 Requisitos: Flutter 3.24+ (testado com 3.47), Android Studio/SDK (Android) ou Xcode (iOS).
@@ -47,6 +81,12 @@ flutter test
 ```
 lib/
   main.dart                     app, tema, ciclo de vida da câmera e wakelock
+  data/
+    models.dart                 SessionRecord e SessionEvent
+    session_recorder.dart       resume a sessão a partir das métricas (alertas, PERCLOS máx.)
+    session_database.dart       banco SQLite local (sessions + events)
+    calibration_store.dart      limiares calibrados em shared_preferences
+    csv_export.dart             exportação CSV
   theme.dart                    paleta "Dark-First Utility" (design_guidelines.json)
   vision/
     metrics.dart                EAR, MAR, média móvel, PERCLOS
@@ -57,6 +97,7 @@ lib/
     common.dart                 cabeçalho, botões, painéis
   screens/
     home_screen.dart  calibration_screen.dart  demo_screen.dart  explanation_screen.dart
+    history_screen.dart         histórico, detalhes da sessão, exportar/apagar
 test/                           testes unitários e de widget
 ```
 

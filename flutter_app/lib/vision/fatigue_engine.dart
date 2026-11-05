@@ -112,6 +112,9 @@ class Thresholds {
   double mar = marDefault;
   double marNeutral = marNeutralDefault;
 
+  /// `true` quando os limiares vieram de uma calibração (nova ou salva).
+  bool calibrated = false;
+
   double? _openEar;
   double? _closedEar;
   double? _yawnMar;
@@ -120,12 +123,23 @@ class Thresholds {
     ear = earDefault;
     mar = marDefault;
     marNeutral = marNeutralDefault;
+    calibrated = false;
     _openEar = _closedEar = _yawnMar = null;
+  }
+
+  /// Restaura limiares salvos anteriormente.
+  void restore({required double ear, required double mar, required double marNeutral}) {
+    reset();
+    this.ear = ear;
+    this.mar = mar;
+    this.marNeutral = marNeutral;
+    calibrated = true;
   }
 
   /// Aplica o resultado (medianas) de uma etapa de calibração.
   /// 0 = olhos abertos, 1 = olhos fechados, 2 = bocejo, 3 = sorriso (opcional).
   void applyCalibration(int step, double medianEar, double medianMar) {
+    calibrated = true;
     switch (step) {
       case 0:
         _openEar = medianEar;

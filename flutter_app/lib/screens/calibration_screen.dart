@@ -55,6 +55,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
 
   void _openDemo() {
     _leavingToDemo = true;
+    vision.saveCalibration();
     vision.beginMonitoring();
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => DemoScreen(vision: vision)));
   }

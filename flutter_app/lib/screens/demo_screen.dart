@@ -29,6 +29,14 @@ class _DemoScreenState extends State<DemoScreen> {
   VisionController get vision => widget.vision;
 
   @override
+  void initState() {
+    super.initState();
+    // Aberto direto da tela inicial (calibração salva): liga a câmera aqui.
+    if (vision.calibrationStep != null) vision.beginMonitoring();
+    if (vision.state == EngineState.idle || vision.state == EngineState.error) vision.start();
+  }
+
+  @override
   void dispose() {
     if (!_recalibrating) vision.stop();
     super.dispose();

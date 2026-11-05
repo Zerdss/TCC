@@ -5,6 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
+import '../data/calibration_store.dart';
+import '../data/models.dart';
+import '../data/session_database.dart';
+import '../data/session_recorder.dart';
 import 'fatigue_engine.dart';
 import 'metrics.dart';
 
@@ -35,7 +39,21 @@ class FramingGuide {
 /// [FatigueEngine]. Todo o processamento ocorre no aparelho; nenhum quadro é
 /// salvo ou enviado pela rede.
 class VisionController extends ChangeNotifier {
-  VisionController() : engine = FatigueEngine(Thresholds());
+  VisionController({this.database, this.calibrationStore}) : engine = FatigueEngine(Thresholds());
+
+  /// Banco local do histórico (opcional: nulo nos testes de widget).
+  final SessionDatabase? database;
+
+  /// Armazena os limiares calibrados (opcional).
+  final CalibrationStore? calibrationStore;
+
+  /// Sessões menores que isso não são gravadas (evita registros vazios).
+  static const minSessionDuration = Duration(seconds: 10);
+
+  SessionRecorder? _recorder;
+
+  /// Última sessão gravada (para exibir um aviso no app).
+  SessionRecord? lastSavedSession;
 
   final FatigueEngine engine;
   Thresholds get thresholds => engine.thresholds;
@@ -124,6 +142,7 @@ class VisionController extends ChangeNotifier {
   }
 
   Future<void> stop() async {
+    await endSession();
     final controller = camera;
     camera = null;
     state = EngineState.idle;
@@ -145,6 +164,7 @@ class VisionController extends ChangeNotifier {
 
   // ------------------------------------------------------------------ calibração
   void beginCalibration(int step) {
+    endSession();
     calibrationStep = step;
     calibrationProgress = 0;
     _sampler.reset();
@@ -173,6 +193,33 @@ class VisionController extends ChangeNotifier {
   void resetCalibration() {
     thresholds.reset();
     engine.reset();
+  }
+
+  /// Salva os limiares atuais para as próximas aberturas do app.
+  Future<void> saveCalibration() async => calibrationStore?.save(thresholds);
+
+  /// Carrega a calibração salva. Retorna `true` se havia uma.
+  Future<bool> loadSavedCalibration() async {
+    final saved = await calibrationStore?.load();
+    if (saved == null) return false;
+    thresholds.restore(ear: saved.ear, mar: saved.mar, marNeutral: saved.marNeutral);
+    engine.reset();
+    return true;
+  }
+
+  /// Encerra a sessão em andamento e grava no banco (se durou o suficiente).
+  Future<void> endSession() async {
+    final recorder = _recorder;
+    _recorder = null;
+    if (recorder == null || recorder.duration < minSessionDuration) return;
+    final record = recorder.finish();
+    try {
+      await database?.insertSession(record);
+      lastSavedSession = record;
+      _notify();
+    } catch (e) {
+      debugPrint('Falha ao gravar sessão: $e');
+    }
   }
 
   // ------------------------------------------------------------------ quadros
@@ -261,6 +308,16 @@ class VisionController extends ChangeNotifier {
     status = result.status;
     notice = result.notice;
 
+    // Histórico: a sessão começa no primeiro quadro de monitoramento.
+    final wallClock = DateTime.now();
+    (_recorder ??= SessionRecorder(
+      startedAt: wallClock,
+      earThreshold: thresholds.ear,
+      marThreshold: thresholds.mar,
+      calibrated: thresholds.calibrated,
+    ))
+        .add(metrics, status, wallClock);
+
     if (now - _lastHistory >= 250) {
       _lastHistory = now;
       _pushHistory(earHistory, smooth.ear);
@@ -344,6 +401,7 @@ class VisionController extends ChangeNotifier {
 
   @override
   void dispose() {
+    endSession();
     _disposed = true;
     final controller = camera;
     camera = null;

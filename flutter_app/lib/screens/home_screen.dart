@@ -3,17 +3,53 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../vision/vision_controller.dart';
 import '../widgets/common.dart';
+import '../data/calibration_store.dart';
 import 'calibration_screen.dart';
+import 'demo_screen.dart';
+import 'history_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.vision});
 
   final VisionController vision;
 
-  void _start(BuildContext context) {
-    vision.resetCalibration();
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => CalibrationScreen(vision: vision)));
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  SavedCalibration? _saved;
+
+  VisionController get vision => widget.vision;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshSaved();
   }
+
+  Future<void> _refreshSaved() async {
+    final saved = await vision.calibrationStore?.load();
+    if (mounted) setState(() => _saved = saved);
+  }
+
+  Future<void> _start(BuildContext context) async {
+    vision.resetCalibration();
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => CalibrationScreen(vision: vision)));
+    _refreshSaved();
+  }
+
+  Future<void> _useSaved(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    if (!await vision.loadSavedCalibration()) return;
+    vision.beginMonitoring();
+    await navigator.push(MaterialPageRoute(builder: (_) => DemoScreen(vision: vision)));
+    _refreshSaved();
+  }
+
+  String _fmt(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')} '
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +81,27 @@ class HomeScreen extends StatelessWidget {
           icon: Icons.photo_camera_outlined,
           onPressed: () => _start(context),
         ),
+        if (_saved != null) ...[
+          const SizedBox(height: 10),
+          PrimaryButton(
+            key: const Key('button-calibracao-salva'),
+            label: 'Usar calibração salva (${_fmt(_saved!.savedAt)})',
+            icon: Icons.bookmark_added_outlined,
+            secondary: true,
+            onPressed: () => _useSaved(context),
+          ),
+        ],
+        if (vision.database != null) ...[
+          const SizedBox(height: 4),
+          TextButton.icon(
+            key: const Key('button-historico'),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => HistoryScreen(database: vision.database!))),
+            icon: const Icon(Icons.history, color: AppColors.amber),
+            label: const Text('Histórico de sessões',
+                style: TextStyle(color: AppColors.amber, fontWeight: FontWeight.w800)),
+          ),
+        ],
         const SizedBox(height: 36),
         const Panel(
           color: Color(0xFF0E211C),

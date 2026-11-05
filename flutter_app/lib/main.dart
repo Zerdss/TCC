@@ -2,26 +2,36 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'data/calibration_store.dart';
+import 'data/session_database.dart';
 import 'screens/home_screen.dart';
 import 'theme.dart';
 import 'vision/vision_controller.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // A pré‑visualização e o mapeamento dos landmarks assumem orientação retrato.
-  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  runApp(const FatigueGuardApp());
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  SessionDatabase? database;
+  try {
+    database = await SessionDatabase.open();
+  } catch (e) {
+    debugPrint('Histórico indisponível: $e');
+  }
+  runApp(FatigueGuardApp(database: database));
 }
 
 class FatigueGuardApp extends StatefulWidget {
-  const FatigueGuardApp({super.key});
+  const FatigueGuardApp({super.key, this.database});
+
+  final SessionDatabase? database;
 
   @override
   State<FatigueGuardApp> createState() => _FatigueGuardAppState();
 }
 
 class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingObserver {
-  final vision = VisionController();
+  late final vision = VisionController(database: widget.database, calibrationStore: CalibrationStore());
   bool _resumeCamera = false;
 
   @override
