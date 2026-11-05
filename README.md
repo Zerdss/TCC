@@ -12,8 +12,18 @@ Fluxo:
 - Lógica temporal: piscadas (0,08–0,4 s) não geram alerta; olhos fechados por 1,2 s
   ou bocejo sustentado por 1,8 s geram **ALERTA**; checagem cruzada EAR × MAR para
   sorriso/fala; histerese de 1 s para voltar ao normal.
-- Status em 3 níveis (NORMAL / ATENÇÃO / ALERTA DE SONOLÊNCIA), alerta sonoro e vibração
+- Status em 3 níveis (NORMAL / ATENÇÃO / ALERTA DE SONOLÊNCIA), bipe de alerta e vibração
   (podem ser desligados), tela sempre ligada durante o monitoramento.
+- **Configurações** (ícone no topo de qualquer tela):
+  - alertas: som, vibração e botão "Testar alerta";
+  - sorriso e expressões: ligar/desligar o filtro de sorriso/fala, tolerância ao sorriso e
+    "Recalibrar só o sorriso";
+  - sensibilidade: limiares de EAR e MAR (ajuste manual) e refazer calibração completa;
+  - tempos: olhos fechados para alertar (0,8–3 s), bocejo sustentado (1–3 s), piscadas/min
+    para ATENÇÃO;
+  - dados: histórico, apagar calibração, restaurar padrões.
+- Design "Dark-First Utility" de `docs/design_guidelines.json`: fontes Barlow Condensed
+  (títulos/números) e Manrope (texto), ícone próprio e tela de abertura escura.
 
 ## Dados salvos no aparelho
 
@@ -22,6 +32,7 @@ Nada sai do celular. Só números e horários são gravados — **nunca imagens*
 | O quê | Onde | Para quê |
 |---|---|---|
 | Limiares da calibração (EAR, MAR, faixa neutra, data) | `shared_preferences` | Botão **"Usar calibração salva"** na tela inicial, sem recalibrar toda vez |
+| Ajustes da tela de Configurações | `shared_preferences` | Som, vibração, filtro de sorriso e tempos dos alertas |
 | Histórico de sessões e alertas | **SQLite** (`sqflite`), arquivo `fatigue_guard.db` | Tela **Histórico de sessões**, detalhes com linha do tempo e **exportação CSV** |
 
 Uma sessão começa no primeiro quadro do painel ao vivo e termina ao sair do painel,
@@ -82,6 +93,7 @@ lib/
     session_recorder.dart       resume a sessão a partir das métricas (alertas, PERCLOS máx.)
     session_database.dart       banco SQLite local (sessions + events)
     calibration_store.dart      limiares calibrados em shared_preferences
+    settings_store.dart         ajustes da tela de Configurações
     csv_export.dart             exportação CSV
   theme.dart                    paleta "Dark-First Utility" (docs/design_guidelines.json)
   vision/
@@ -94,6 +106,11 @@ lib/
   screens/
     home_screen.dart  calibration_screen.dart  demo_screen.dart  explanation_screen.dart
     history_screen.dart         histórico, detalhes da sessão, exportar/apagar
+    settings_screen.dart        configurações (alertas, sorriso, sensibilidade, tempos)
+assets/
+  fonts/                        Barlow Condensed + Manrope (licença OFL)
+  sounds/alerta.wav             bipe do alerta
+  icon/                         ícone do app (gerado com flutter_launcher_icons)
 test/                           testes unitários e de widget
 ```
 

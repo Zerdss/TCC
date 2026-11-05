@@ -1,74 +1,189 @@
 import 'package:flutter/material.dart';
 
+import '../screens/settings_screen.dart';
 import '../theme.dart';
+import '../vision/vision_controller.dart';
+
+/// Dá acesso ao [VisionController] em qualquer tela (ex.: botão de configurações).
+class AppScope extends InheritedWidget {
+  const AppScope({super.key, required this.vision, required super.child});
+
+  final VisionController vision;
+
+  static VisionController? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AppScope>()?.vision;
+
+  @override
+  bool updateShouldNotify(AppScope oldWidget) => oldWidget.vision != vision;
+}
 
 /// Estrutura comum: área segura, rolagem, largura máxima e cabeçalho do app.
 class AppPage extends StatelessWidget {
-  const AppPage({super.key, required this.children, this.bottom});
+  const AppPage({super.key, required this.children, this.showSettings = true});
 
   final List<Widget> children;
-  final Widget? bottom;
+  final bool showSettings;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 48),
-              children: [const AppHeader(), const SizedBox(height: 26), ...children],
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0.9, -1.1),
+            radius: 1.2,
+            colors: [Color(0x14F59E0B), AppColors.bg],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 48),
+                children: [AppHeader(showSettings: showSettings), const SizedBox(height: 24), ...children],
+              ),
             ),
           ),
         ),
       ),
-      bottomNavigationBar: bottom,
     );
   }
 }
 
 class AppHeader extends StatelessWidget {
-  const AppHeader({super.key});
+  const AppHeader({super.key, this.showSettings = true});
+
+  final bool showSettings;
 
   @override
   Widget build(BuildContext context) {
+    final canPop = Navigator.of(context).canPop();
+    final vision = AppScope.maybeOf(context);
+    // Em telas estreitas o selo "100% LOCAL" vira só o ícone, para o nome caber.
+    final compact = MediaQuery.sizeOf(context).width < 430 && showSettings && vision != null;
     return Row(
       children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: AppColors.panel2,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.line),
+        if (canPop)
+          _HeaderButton(
+            icon: Icons.arrow_back,
+            tooltip: 'Voltar',
+            onTap: () => Navigator.of(context).maybePop(),
+          )
+        else
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.panel2, AppColors.panel],
+              ),
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(color: AppColors.lineStrong),
+            ),
+            child: const Icon(Icons.remove_red_eye_outlined, color: AppColors.amber, size: 22),
           ),
-          child: const Icon(Icons.remove_red_eye_outlined, color: AppColors.amber, size: 22),
-        ),
         const SizedBox(width: 10),
         const Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('TCC • VISÃO COMPUTACIONAL', style: AppText.overline, overflow: TextOverflow.ellipsis),
-              Text('FATIGUE / GUARD',
-                  style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.5, fontSize: 15)),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text('FATIGUE / GUARD', style: AppText.brand, maxLines: 1),
+              ),
             ],
           ),
         ),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-          decoration: BoxDecoration(color: const Color(0xFF10251F), borderRadius: BorderRadius.circular(20)),
-          child: const Row(
+          padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 9, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFF10251F),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF19513F)),
+          ),
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.wifi_off, size: 14, color: AppColors.green),
-              SizedBox(width: 5),
-              Text('100% LOCAL',
-                  style: TextStyle(color: AppColors.green, fontSize: 10, fontWeight: FontWeight.w800)),
+              const Icon(Icons.wifi_off, size: 13, color: AppColors.green),
+              if (!compact) const SizedBox(width: 5),
+              if (!compact)
+                const Text('100% LOCAL',
+                  style: TextStyle(
+                      fontFamily: displayFont,
+                      color: AppColors.green,
+                      fontSize: 12,
+                      letterSpacing: 1,
+                      fontWeight: FontWeight.w700)),
             ],
           ),
         ),
+        if (showSettings && vision != null) ...[
+          const SizedBox(width: 8),
+          _HeaderButton(
+            key: const Key('button-configuracoes'),
+            icon: Icons.tune,
+            tooltip: 'Configurações',
+            onTap: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => SettingsScreen(vision: vision))),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _HeaderButton extends StatelessWidget {
+  const _HeaderButton({super.key, required this.icon, required this.tooltip, required this.onTap});
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: AppColors.panel,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(11),
+          side: const BorderSide(color: AppColors.lineStrong),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(11),
+          onTap: onTap,
+          child: SizedBox(width: 42, height: 42, child: Icon(icon, color: AppColors.text, size: 20)),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cabeçalho de seção de página: rótulo, título e descrição.
+class PageTitle extends StatelessWidget {
+  const PageTitle({super.key, required this.kicker, required this.title, this.subtitle});
+
+  final String kicker;
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(kicker, style: AppText.kicker),
+        const SizedBox(height: 6),
+        Text(title, style: AppText.h2),
+        if (subtitle != null) ...[
+          const SizedBox(height: 10),
+          Text(subtitle!, style: AppText.body),
+        ],
       ],
     );
   }

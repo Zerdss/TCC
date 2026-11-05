@@ -40,6 +40,35 @@ const int blinkRateWindowMs = 60000;
 /// Amostras coletadas em cada etapa da calibração.
 const int samplesPerStep = 60;
 
+/// Ajustes do usuário (tela de Configurações). Os valores padrão são os
+/// validados no protótipo.
+class DetectionSettings {
+  /// Tempo contínuo de olhos fechados para o ALERTA.
+  int eyesAlertMs = closedFatigueMs;
+
+  /// Tempo contínuo de boca aberta para considerar bocejo (ALERTA).
+  int yawnAlertMs = yawnMinMs;
+
+  /// Checagem cruzada EAR × MAR: ignora olhos semicerrados ao sorrir/falar.
+  bool smileFilter = true;
+
+  /// Piscadas por minuto a partir das quais aparece ATENÇÃO.
+  int blinkWarnRate = warnBlinkRate;
+
+  /// ATENÇÃO aparece um pouco antes do alerta (mesma proporção do protótipo).
+  int get eyesWarnMs => (eyesAlertMs * warnClosedMs / closedFatigueMs).round();
+  int get mouthWarnMs => (yawnAlertMs * warnMouthMs / yawnMinMs).round();
+
+  void reset() {
+    eyesAlertMs = closedFatigueMs;
+    yawnAlertMs = yawnMinMs;
+    smileFilter = true;
+    blinkWarnRate = warnBlinkRate;
+  }
+}
+
+String formatSeconds(int ms) => (ms / 1000).toStringAsFixed(1).replaceAll('.', ',');
+
 enum AlertReason { none, eyes, yawn }
 
 enum FatigueStatus { normal, attention, alert }
@@ -80,18 +109,19 @@ class FatigueMetrics {
   static const empty = FatigueMetrics();
 
   /// Classificação em 3 níveis + mensagem para o usuário.
-  ({FatigueStatus status, String notice}) classify() {
+  ({FatigueStatus status, String notice}) classify([DetectionSettings? settings]) {
+    final cfg = settings ?? DetectionSettings();
     if (alert) {
       return (
         status: FatigueStatus.alert,
         notice: alertReason == AlertReason.yawn
             ? 'ALERTA: bocejo sustentado detectado'
-            : 'ALERTA: olhos fechados por mais de 1,2 segundo',
+            : 'ALERTA: olhos fechados por mais de ${formatSeconds(cfg.eyesAlertMs)} s',
       );
     }
-    final eyesWarn = closedMs >= warnClosedMs && !expression;
-    final mouthWarn = mouthOpenMs >= warnMouthMs;
-    final blinkWarn = blinkRate >= warnBlinkRate;
+    final eyesWarn = closedMs >= cfg.eyesWarnMs && !expression;
+    final mouthWarn = mouthOpenMs >= cfg.mouthWarnMs;
+    final blinkWarn = blinkRate >= cfg.blinkWarnRate;
     if (eyesWarn || mouthWarn || blinkWarn) {
       return (
         status: FatigueStatus.attention,
@@ -195,9 +225,10 @@ class CalibrationSampler {
 /// Máquina de estados temporal: piscadas × fechamento prolongado, bocejo
 /// sustentado, PERCLOS, checagem cruzada EAR×MAR e histerese.
 class FatigueEngine {
-  FatigueEngine(this.thresholds);
+  FatigueEngine(this.thresholds, [DetectionSettings? settings]) : settings = settings ?? DetectionSettings();
 
   final Thresholds thresholds;
+  final DetectionSettings settings;
   final _earAvg = MovingAverage(smoothWindow);
   final _marAvg = MovingAverage(smoothWindow);
   final _perclos = PerclosWindow(60000);
@@ -228,7 +259,7 @@ class FatigueEngine {
     final t = thresholds;
 
     // Checagem cruzada: MAR elevado indica sorriso/fala — não conta como olho fechado.
-    final expression = mar >= t.marNeutral;
+    final expression = settings.smileFilter && mar >= t.marNeutral;
     final eyesClosed = ear < t.ear && !expression;
     if (eyesClosed) {
       if (_closedSince == 0) _closedSince = now;
@@ -251,12 +282,12 @@ class FatigueEngine {
       _mouthSince = 0;
     }
     final mouthOpenMs = _mouthSince != 0 ? now - _mouthSince : 0;
-    final yawning = mouthOpenMs >= yawnMinMs;
+    final yawning = mouthOpenMs >= settings.yawnAlertMs;
 
     // PERCLOS ignora piscadas: só conta fechamentos acima de 0,4 s.
     final perclos = _perclos.add(now, closedMs > blinkMaxMs);
 
-    final drowsy = closedMs >= closedFatigueMs;
+    final drowsy = closedMs >= settings.eyesAlertMs;
     if (drowsy || yawning) {
       _alert = true;
       _reason = drowsy ? AlertReason.eyes : AlertReason.yawn;

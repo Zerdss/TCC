@@ -86,4 +86,22 @@ void main() {
     expect(s.progress, 100);
     expect(s.medianEar, 0.3);
   });
+
+  test('tempo de alerta configurável', () {
+    final e = FatigueEngine(Thresholds(), DetectionSettings()..eyesAlertMs = 2000);
+    run(e, from: 1, to: 1000, ear: 0.30);
+    var m = run(e, from: 1033, to: 2400, ear: 0.10); // ~1,4 s
+    expect(m.alert, isFalse);
+    expect(m.classify(e.settings).status, FatigueStatus.attention);
+    m = run(e, from: 2433, to: 3200, ear: 0.10); // > 2 s
+    expect(m.alert, isTrue);
+    expect(m.classify(e.settings).notice, contains('2,0 s'));
+  });
+
+  test('filtro de sorriso desligado: olho semicerrado sorrindo conta como fechado', () {
+    final e = FatigueEngine(Thresholds(), DetectionSettings()..smileFilter = false);
+    final m = run(e, from: 1, to: 3000, ear: 0.12, mar: 0.40);
+    expect(m.expression, isFalse);
+    expect(m.alert, isTrue);
+  });
 }

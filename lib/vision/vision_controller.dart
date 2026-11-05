@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import '../data/calibration_store.dart';
 import '../data/models.dart';
 import '../data/session_database.dart';
 import '../data/session_recorder.dart';
+import '../data/settings_store.dart';
 import 'fatigue_engine.dart';
 import 'metrics.dart';
 
@@ -39,7 +41,13 @@ class FramingGuide {
 /// [FatigueEngine]. Todo o processamento ocorre no aparelho; nenhum quadro é
 /// salvo ou enviado pela rede.
 class VisionController extends ChangeNotifier {
-  VisionController({this.database, this.calibrationStore}) : engine = FatigueEngine(Thresholds());
+  VisionController({this.database, this.calibrationStore, this.settingsStore})
+      : engine = FatigueEngine(Thresholds());
+
+  /// Preferências do usuário (opcional).
+  final SettingsStore? settingsStore;
+
+  AudioPlayer? _player;
 
   /// Banco local do histórico (opcional: nulo nos testes de widget).
   final SessionDatabase? database;
@@ -57,6 +65,7 @@ class VisionController extends ChangeNotifier {
 
   final FatigueEngine engine;
   Thresholds get thresholds => engine.thresholds;
+  DetectionSettings get settings => engine.settings;
 
   final _sampler = CalibrationSampler();
 
@@ -135,11 +144,29 @@ class VisionController extends ChangeNotifier {
     } on CameraException catch (e) {
       _fail(e.code == 'CameraAccessDenied' || e.code == 'CameraAccessDeniedWithoutPrompt'
           ? 'Permissão da câmera negada. Libere o acesso nas configurações do aparelho.'
-          : 'Erro ao acessar a câmera: ${e.description ?? e.code}');
+          : 'Não foi possível abrir a câmera frontal. Verifique se outro app está usando a câmera '
+              'e tente novamente.');
+      debugPrint('CameraException: ${e.code} ${e.description}');
     } catch (e) {
       _fail('Falha ao iniciar a detecção facial: $e');
     }
   }
+
+  int _cameraUsers = 0;
+
+  /// Telas que usam a câmera chamam [acquireCamera] ao abrir e [releaseCamera]
+  /// ao fechar; a câmera só desliga quando nenhuma tela precisa mais dela.
+  void acquireCamera() {
+    _cameraUsers++;
+    if (state == EngineState.idle || state == EngineState.error) start();
+  }
+
+  void releaseCamera() {
+    _cameraUsers = _cameraUsers > 0 ? _cameraUsers - 1 : 0;
+    if (_cameraUsers == 0) stop();
+  }
+
+  bool get isMonitoring => calibrationStep == null && state == EngineState.running;
 
   Future<void> stop() async {
     await endSession();
@@ -182,12 +209,71 @@ class VisionController extends ChangeNotifier {
 
   void setSoundEnabled(bool value) {
     soundEnabled = value;
-    _notify();
+    saveSettings();
   }
 
   void setVibrationEnabled(bool value) {
     vibrationEnabled = value;
+    saveSettings();
+  }
+
+  /// Carrega as preferências salvas (chamado ao abrir o app).
+  Future<void> loadPreferences() async {
+    final stored = await settingsStore?.load();
+    if (stored != null) {
+      soundEnabled = stored.sound;
+      vibrationEnabled = stored.vibration;
+      stored.applyTo(settings);
+    }
+    await loadSavedCalibration();
     _notify();
+  }
+
+  /// Só avisa a interface (ex.: enquanto um controle deslizante é arrastado).
+  void refresh() => _notify();
+
+  /// Salva as preferências e avisa a interface.
+  Future<void> saveSettings() async {
+    _notify();
+    await settingsStore?.save(sound: soundEnabled, vibration: vibrationEnabled, detection: settings);
+  }
+
+  /// Restaura os ajustes de detecção, som e vibração para o padrão.
+  Future<void> resetSettings() async {
+    settings.reset();
+    soundEnabled = true;
+    vibrationEnabled = true;
+    await saveSettings();
+  }
+
+  /// Ajuste manual dos limiares (tela de Configurações). Fica salvo como calibração.
+  Future<void> updateThresholds({double? ear, double? mar, double? marNeutral}) async {
+    if (ear != null) thresholds.ear = ear;
+    if (mar != null) thresholds.mar = mar;
+    if (marNeutral != null) thresholds.marNeutral = marNeutral;
+    _notify();
+    await saveCalibration();
+  }
+
+  /// Volta aos limiares padrão e apaga a calibração salva.
+  Future<void> clearCalibration() async {
+    resetCalibration();
+    await calibrationStore?.clear();
+    _notify();
+  }
+
+  /// Toca o som e a vibração de alerta (também usado no botão "Testar alerta").
+  Future<void> playAlertFeedback({bool force = false}) async {
+    if (soundEnabled || force) {
+      try {
+        _player ??= AudioPlayer()..setReleaseMode(ReleaseMode.stop);
+        await _player!.stop();
+        await _player!.play(AssetSource('sounds/alerta.wav'), volume: 1);
+      } catch (e) {
+        SystemSound.play(SystemSoundType.alert);
+      }
+    }
+    if (vibrationEnabled || force) HapticFeedback.vibrate();
   }
 
   void resetCalibration() {
@@ -304,7 +390,7 @@ class VisionController extends ChangeNotifier {
     }
 
     metrics = engine.process(smooth.ear, smooth.mar, now);
-    final result = metrics.classify();
+    final result = metrics.classify(engine.settings);
     status = result.status;
     notice = result.notice;
 
@@ -324,10 +410,9 @@ class VisionController extends ChangeNotifier {
       _pushHistory(marHistory, smooth.mar);
       _pushHistory(perclosHistory, metrics.perclos);
     }
-    if (status == FatigueStatus.alert && now - _lastAlertFeedback >= 1200) {
+    if (status == FatigueStatus.alert && now - _lastAlertFeedback >= 1500) {
       _lastAlertFeedback = now;
-      if (soundEnabled) SystemSound.play(SystemSoundType.alert);
-      if (vibrationEnabled) HapticFeedback.vibrate();
+      playAlertFeedback();
     }
   }
 
@@ -407,6 +492,7 @@ class VisionController extends ChangeNotifier {
     camera = null;
     controller?.dispose();
     _detector?.close();
+    _player?.dispose();
     super.dispose();
   }
 }
