@@ -144,6 +144,17 @@ class VisionController extends ChangeNotifier {
   void _checkHealth() {
     if (state != EngineState.running || _restarting) return;
     final elapsed = _clock.elapsedMilliseconds - _runningSince;
+    // Android: em alguns aparelhos (ex.: Xiaomi/Poco) a conversão para NV21 falha
+    // dentro do plugin e nenhum quadro chega. Após 3 s sem quadros, troca para YUV_420.
+    if (Platform.isAndroid &&
+        _androidFormat == ImageFormatGroup.nv21 &&
+        _framesProcessed == 0 &&
+        _framesReceived == 0 &&
+        elapsed > 3000) {
+      _androidFormat = ImageFormatGroup.yuv420;
+      _restartCamera();
+      return;
+    }
     String text = '';
     if (_framesProcessed == 0 && elapsed > 4000) {
       text = _framesReceived == 0
