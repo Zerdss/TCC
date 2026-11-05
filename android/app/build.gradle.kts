@@ -34,6 +34,13 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // O R8 (encolhimento de código) remove classes que o Google ML Kit carrega por
+            // reflexão, e a detecção facial falha no APK release com
+            // "NullPointerException ... getClass()". Desligado para o ML Kit funcionar;
+            // as regras em proguard-rules.pro protegem o ML Kit caso seja religado.
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }

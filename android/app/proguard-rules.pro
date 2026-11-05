@@ -1,0 +1,11 @@
+# Google ML Kit / Play Services: classes carregadas por reflexão (registro de componentes).
+-keep class com.google.mlkit.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_common.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_face.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_face_bundled.** { *; }
+-keep class com.google.android.gms.vision.** { *; }
+-keep class com.google.android.odml.** { *; }
+-keep class com.google_mlkit_commons.** { *; }
+-keep class com.google_mlkit_face_detection.** { *; }
+-dontwarn com.google.mlkit.**
+-dontwarn com.google.android.gms.**
