@@ -37,6 +37,11 @@ const int recoveryMs = 1000;
 const int smoothWindow = 5;
 const int blinkRateWindowMs = 60000;
 
+/// Probabilidade de sorriso (classificador do ML Kit) a partir da qual o rosto
+/// é tratado como sorriso — pega também o sorriso de boca fechada, em que o MAR
+/// quase não muda mas os olhos ficam semicerrados.
+const double smileProbabilityThreshold = 0.6;
+
 /// Cabeça caindo: queda (graus) em relação à posição normal e tempo para alertar.
 const double headDropDefaultDeg = 20;
 const double headTiltDeg = 30;
@@ -404,14 +409,15 @@ class FatigueEngine {
   /// Processa um quadro já suavizado. [now] em ms (monotônico, > 0).
   /// [pitch] e [roll] são os ângulos da cabeça informados pelo detector
   /// (pitch positivo = olhando para cima).
-  FatigueMetrics process(double ear, double mar, int now, {double? pitch, double? roll}) {
+  FatigueMetrics process(double ear, double mar, int now, {double? pitch, double? roll, double? smile}) {
     final t = thresholds;
     _lastFaceSeen = now;
     _lastEar = ear;
     _lastMar = mar;
 
     // Checagem cruzada: MAR elevado indica sorriso/fala — não conta como olho fechado.
-    final expression = settings.smileFilter && mar >= t.marNeutral;
+    final expression = settings.smileFilter &&
+        (mar >= t.marNeutral || (smile ?? 0) >= smileProbabilityThreshold);
     final eyesClosed = ear < t.ear && !expression;
     if (eyesClosed) {
       if (_closedSince == 0) _closedSince = now;

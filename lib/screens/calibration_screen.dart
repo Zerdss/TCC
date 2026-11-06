@@ -54,7 +54,10 @@ class CalibrationScreen extends StatefulWidget {
 class _CalibrationScreenState extends State<CalibrationScreen> {
   late int step = widget.onlyStep ?? 0;
   bool _leavingToDemo = false;
-  late final bool _wasMonitoring = vision.isMonitoring;
+  /// O painel ao vivo estava monitorando quando esta tela abriu? Precisa ser
+  /// lido no initState, ANTES de beginCalibration — lido depois, já estaria em
+  /// modo calibração e o painel nunca voltaria a monitorar.
+  late final bool _wasMonitoring;
 
   /// Avança sozinho ao concluir cada etapa (útil na etapa de olhos fechados).
   bool _auto = true;
@@ -71,6 +74,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   @override
   void initState() {
     super.initState();
+    _wasMonitoring = vision.calibrationStep == null;
     _auto = vision.settings.autoAdvanceCalibration;
     vision.acquireCamera();
     vision.addListener(_onVision);

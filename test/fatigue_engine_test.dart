@@ -3,10 +3,16 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Simula quadros a ~30 FPS e devolve a última métrica.
 FatigueMetrics run(FatigueEngine e,
-    {required int from, required int to, required double ear, double mar = 0.1, double? pitch, double? roll}) {
+    {required int from,
+    required int to,
+    required double ear,
+    double mar = 0.1,
+    double? pitch,
+    double? roll,
+    double? smile}) {
   var m = FatigueMetrics.empty;
   for (var t = from; t <= to; t += 33) {
-    m = e.process(ear, mar, t, pitch: pitch, roll: roll);
+    m = e.process(ear, mar, t, pitch: pitch, roll: roll, smile: smile);
   }
   return m;
 }
@@ -182,5 +188,28 @@ void main() {
     final m = run(e, from: 533, to: 7000, ear: 0.10);
     expect(m.alert, isTrue);
     expect(m.alertSinceMs, greaterThanOrEqualTo(escalateAfterMs));
+  });
+
+  group('sorriso de boca fechada (detector de sorriso do ML Kit)', () {
+    test('olhos semicerrados sorrindo com a boca fechada não geram alerta', () {
+      final e = FatigueEngine(Thresholds());
+      final m = run(e, from: 1, to: 3000, ear: 0.12, mar: 0.05, smile: 0.9);
+      expect(m.expression, isTrue);
+      expect(m.alert, isFalse);
+      expect(m.closedMs, 0);
+    });
+
+    test('sem sorriso, os mesmos olhos fechados geram alerta', () {
+      final e = FatigueEngine(Thresholds());
+      final m = run(e, from: 1, to: 3000, ear: 0.12, mar: 0.05, smile: 0.1);
+      expect(m.alert, isTrue);
+      expect(m.alertReason, AlertReason.eyes);
+    });
+
+    test('com o filtro de sorriso desligado, o sorriso não é ignorado', () {
+      final e = FatigueEngine(Thresholds(), DetectionSettings()..smileFilter = false);
+      final m = run(e, from: 1, to: 3000, ear: 0.12, mar: 0.05, smile: 0.9);
+      expect(m.alert, isTrue);
+    });
   });
 }

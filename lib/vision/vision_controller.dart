@@ -216,7 +216,8 @@ class VisionController extends ChangeNotifier {
       _detector ??= FaceDetector(
         options: FaceDetectorOptions(
           enableContours: true,
-          enableClassification: false,
+          // Probabilidade de sorriso: separa o olho semicerrado do sorriso do olho fechado.
+          enableClassification: true,
           performanceMode: FaceDetectorMode.fast,
           minFaceSize: 0.15,
         ),
@@ -592,7 +593,10 @@ class VisionController extends ChangeNotifier {
       return;
     }
 
-    _applyMonitoring(engine.process(smooth.ear, smooth.mar, now, pitch: pitch, roll: roll), now);
+    _applyMonitoring(
+      engine.process(smooth.ear, smooth.mar, now, pitch: pitch, roll: roll, smile: face.smilingProbability),
+      now,
+    );
   }
 
   /// Atualiza status, histórico da sessão, gráficos e alertas a partir das métricas.

@@ -1,3 +1,4 @@
+import 'package:fatigue_guard/screens/calibration_screen.dart';
 import 'package:fatigue_guard/screens/explanation_screen.dart';
 import 'package:fatigue_guard/screens/home_screen.dart';
 import 'package:fatigue_guard/screens/settings_screen.dart';
@@ -35,6 +36,18 @@ void main() {
     expect(vision.settings.smileFilter, isFalse);
     await tester.scrollUntilVisible(find.text('Olhos fechados para alertar'), 200);
     expect(find.text('1,2 s'), findsOneWidget);
+    vision.dispose();
+  });
+
+  testWidgets('sair de "Recalibrar só o sorriso" devolve o painel ao monitoramento', (tester) async {
+    final vision = VisionController();
+    expect(vision.calibrationStep, isNull); // painel monitorando
+    await tester.pumpWidget(
+        MaterialApp(theme: buildTheme(), home: CalibrationScreen(vision: vision, onlyStep: 3)));
+    expect(vision.calibrationStep, 3);
+    // Fecha a tela de calibração (como o botão voltar).
+    await tester.pumpWidget(const SizedBox());
+    expect(vision.calibrationStep, isNull);
     vision.dispose();
   });
 }

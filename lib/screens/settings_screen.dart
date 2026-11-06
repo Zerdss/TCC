@@ -132,7 +132,8 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.emoji_emotions_outlined,
                 title: 'Ignorar sorriso e fala',
                 subtitle: 'Ao sorrir, rir ou falar os olhos ficam semicerrados. Com esta opção ligada, '
-                    'esses momentos não contam como olhos fechados (checagem cruzada EAR × MAR).',
+                    'esses momentos não contam como olhos fechados. Usa o detector de sorriso do ML Kit '
+                    '(pega também o sorriso de boca fechada) e a abertura da boca (MAR).',
                 value: s.smileFilter,
                 onChanged: (v) {
                   s.smileFilter = v;
@@ -317,8 +318,11 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: 'Olhos abertos, fechados, bocejo e sorriso.',
                 onTap: () {
                   vision.resetCalibration();
-                  Navigator.of(context)
-                      .push(MaterialPageRoute(builder: (_) => CalibrationScreen(vision: vision)));
+                  // Fecha Configurações e o painel antigo; a calibração abre um painel novo ao final.
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => CalibrationScreen(vision: vision)),
+                    (route) => route.isFirst,
+                  );
                 },
               ),
             ]),

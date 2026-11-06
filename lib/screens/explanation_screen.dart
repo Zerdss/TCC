@@ -30,8 +30,9 @@ class ExplanationScreen extends StatelessWidget {
               'geram alerta nem PERCLOS. Olhos fechados de forma contínua por 1,2 s (ajustável) disparam o '
               'ALERTA; a partir de ~0,7 s aparece ATENÇÃO.'),
       (Icons.sentiment_very_satisfied_outlined, AppColors.yellow, 'Sorriso e fala',
-          'Ao sorrir ou falar os olhos se fecham um pouco. Se a boca está na faixa de "sorriso" (MAR acima '
-              'da tolerância calibrada), o olho semicerrado não conta como sonolência — checagem cruzada EAR × MAR.'),
+          'Ao sorrir ou falar os olhos se fecham um pouco. Se o detector de sorriso do ML Kit indica sorriso '
+              '(inclusive de boca fechada) ou a boca está na faixa de "sorriso" (MAR acima da tolerância '
+              'calibrada), o olho semicerrado não conta como sonolência.'),
       (Icons.record_voice_over_outlined, AppColors.blue, 'Bocejo sustentado',
           'Só é bocejo se o MAR ficar acima do limiar de forma contínua por 1,8 s. Falar e rir abrem a boca '
               'por pouco tempo e são ignorados (tolerância de 150 ms para falhas de detecção).'),
