@@ -51,7 +51,7 @@ class CameraPanel extends StatelessWidget {
                         key: const Key('camera-diagnostic'),
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(0xEE090D14),
+                          color: const Color(0xF5FFFFFF),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: AppColors.red),
                         ),
@@ -61,7 +61,7 @@ class CameraPanel extends StatelessWidget {
                           Expanded(
                             child: Text(
                               '${vision.diagnostic}\nTire um print desta tela e envie para o suporte.',
-                              style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 11, height: 1.35),
+                              style: const TextStyle(color: Color(0xFFB91C1C), fontSize: 11, height: 1.35),
                             ),
                           ),
                         ]),
@@ -115,12 +115,12 @@ class _Placeholder extends StatelessWidget {
             const Icon(Icons.videocam_off_outlined, color: AppColors.red, size: 40)
           else
             const SizedBox(
-                width: 32, height: 32, child: CircularProgressIndicator(color: AppColors.amber, strokeWidth: 3)),
+                width: 32, height: 32, child: CircularProgressIndicator(color: AppColors.accent, strokeWidth: 3)),
           const SizedBox(height: 14),
           Text(
             isError ? vision.error : 'Inicializando câmera e detector facial...',
             textAlign: TextAlign.center,
-            style: TextStyle(color: isError ? const Color(0xFFFCA5A5) : AppColors.muted, fontSize: 13),
+            style: TextStyle(color: isError ? const Color(0xFFB91C1C) : AppColors.muted, fontSize: 13),
           ),
           if (isError) ...[
             const SizedBox(height: 14),
@@ -142,12 +142,12 @@ class _GuideBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = guide.good ? AppColors.green : AppColors.amber;
+    final color = guide.good ? AppColors.green : AppColors.yellow;
     return Center(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: const Color(0xE6090D14),
+          color: const Color(0xF2FFFFFF),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: color),
         ),
@@ -175,7 +175,7 @@ class _LocalLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: const Color(0xCC090D14), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: const Color(0xE6FFFFFF), borderRadius: BorderRadius.circular(6)),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -216,7 +216,7 @@ class _OverlayPainter extends CustomPainter {
       return Offset(mirror ? size.width - px : px, dy + y * scale);
     }
 
-    final dots = Paint()..color = const Color(0xB3F59E0B);
+    final dots = Paint()..color = const Color(0xB32E7D57);
     for (final p in d.allPoints) {
       canvas.drawCircle(map(p.x, p.y), 1.4, dots);
     }

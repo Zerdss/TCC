@@ -64,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     const metricsInfo = [
-      (Icons.remove_red_eye_outlined, 'EAR', 'Razão de abertura dos olhos', AppColors.amber),
+      (Icons.remove_red_eye_outlined, 'EAR', 'Razão de abertura dos olhos', AppColors.orange),
       (Icons.show_chart, 'PERCLOS', 'Percentual de tempo com olhos fechados nos últimos 60 segundos', AppColors.green),
       (Icons.sentiment_satisfied_alt_outlined, 'MAR', 'Razão de abertura da boca — detecta bocejos', AppColors.blue),
     ];
@@ -115,7 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 key: const Key('button-historico'),
                 onPressed: () => Navigator.of(context)
                     .push(MaterialPageRoute(builder: (_) => HistoryScreen(database: vision.database!))),
-                icon: const Icon(Icons.history, color: AppColors.amber),
+                icon: const Icon(Icons.history, color: AppColors.accent),
                 label: const Text('Histórico'),
               ),
             ),
@@ -124,15 +124,15 @@ class _HomeScreenState extends State<HomeScreen> {
             child: OutlinedButton.icon(
               onPressed: () =>
                   Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExplanationScreen())),
-              icon: const Icon(Icons.menu_book_outlined, color: AppColors.amber),
+              icon: const Icon(Icons.menu_book_outlined, color: AppColors.accent),
               label: const Text('Como funciona'),
             ),
           ),
         ]),
         const SizedBox(height: 28),
         const Panel(
-          color: Color(0xFF0E211C),
-          border: Color(0xFF19513F),
+          color: AppColors.accentSoft,
+          border: Color(0xFFA8D5B9),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -167,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Row(children: [
                       Text('0${i + 1}', style: AppText.kicker),
                       const Spacer(),
-                      Icon(flow[i].$1, color: AppColors.amber, size: 20),
+                      Icon(flow[i].$1, color: AppColors.accent, size: 20),
                     ]),
                     const SizedBox(height: 10),
                     Text(flow[i].$2, style: AppText.h3.copyWith(fontSize: 20)),
@@ -217,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Ilustração do topo: velocímetro/HUD com um olho no centro, levemente animado.
+/// Ilustração do topo: olho minimalista só em contorno (pálpebras e íris). Pisca rapidamente a cada poucos segundos e o olhar se move de leve.
 class _HeroGauge extends StatefulWidget {
   const _HeroGauge();
 
@@ -227,7 +227,7 @@ class _HeroGauge extends StatefulWidget {
 
 class _HeroGaugeState extends State<_HeroGauge> with SingleTickerProviderStateMixin {
   late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat(reverse: true);
+      AnimationController(vsync: this, duration: const Duration(seconds: 5))..repeat();
 
   @override
   void dispose() {
@@ -245,125 +245,71 @@ class _HeroGaugeState extends State<_HeroGauge> with SingleTickerProviderStateMi
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF111A28), Color(0xFF0B111B)],
+          colors: [Color(0xFFFFFFFF), Color(0xFFE6F3EA)],
         ),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: AnimatedBuilder(
           animation: _c,
-          builder: (context, _) =>
-              CustomPaint(painter: _GaugePainter(Curves.easeInOut.transform(_c.value)), size: Size.infinite),
+          builder: (context, _) => CustomPaint(painter: _EyePainter(_c.value), size: Size.infinite),
         ),
       ),
     );
   }
 }
 
-class _GaugePainter extends CustomPainter {
-  _GaugePainter(this.t);
+class _EyePainter extends CustomPainter {
+  _EyePainter(this.t);
+
+  /// Fase da animação (0 a 1, repete a cada 5 s).
   final double t;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Grade de fundo (linhas de "estrada" em perspectiva).
-    final grid = Paint()
-      ..color = AppColors.line
-      ..strokeWidth = 1;
-    final vanish = Offset(size.width / 2, size.height * 0.30);
-    for (var i = -6; i <= 6; i++) {
-      canvas.drawLine(vanish, Offset(size.width / 2 + i * size.width / 5, size.height), grid);
-    }
-
-    final center = Offset(size.width / 2, size.height * 0.58);
-    final r = math.min(size.width * 0.40, size.height * 0.46);
-    const start = math.pi * 0.85;
-    const sweep = math.pi * 1.3;
-
-    // Arco base e marcações.
-    final base = Paint()
-      ..color = AppColors.panel2
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 10
-      ..strokeCap = StrokeCap.round;
-    canvas.drawArc(Rect.fromCircle(center: center, radius: r), start, sweep, false, base);
-    for (var i = 0; i <= 20; i++) {
-      final a = start + sweep * i / 20;
-      final inner = r - (i % 5 == 0 ? 22 : 16);
-      canvas.drawLine(
-        center + Offset(math.cos(a), math.sin(a)) * inner,
-        center + Offset(math.cos(a), math.sin(a)) * (r - 10),
-        Paint()
-          ..color = i % 5 == 0 ? AppColors.muted : AppColors.lineStrong
-          ..strokeWidth = i % 5 == 0 ? 2 : 1,
-      );
-    }
-
-    // Arco de valor (verde → âmbar → vermelho).
-    final value = 0.35 + 0.35 * t;
-    final rect = Rect.fromCircle(center: center, radius: r);
-    canvas.drawArc(
-      rect,
-      start,
-      sweep * value,
-      false,
-      Paint()
-        ..shader = const SweepGradient(
-          startAngle: start,
-          endAngle: start + sweep,
-          colors: [AppColors.green, AppColors.amber, AppColors.red],
-          stops: [0.0, 0.6, 1.0],
-          tileMode: TileMode.clamp,
-        ).createShader(rect)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 10
-        ..strokeCap = StrokeCap.round,
-    );
-
-    // Olho no centro.
-    final eyeW = r * 0.95;
-    final open = 0.55 + 0.45 * (1 - (t - 0.5).abs() * 2).clamp(0.0, 1.0);
-    final eyeH = eyeW * 0.42 * open;
-    final eye = Path()
-      ..moveTo(center.dx - eyeW / 2, center.dy)
-      ..quadraticBezierTo(center.dx, center.dy - eyeH, center.dx + eyeW / 2, center.dy)
-      ..quadraticBezierTo(center.dx, center.dy + eyeH, center.dx - eyeW / 2, center.dy)
-      ..close();
-    canvas.drawPath(eye, Paint()..color = AppColors.bg);
-    canvas.drawPath(
-      eye,
-      Paint()
-        ..color = AppColors.amber
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5,
-    );
-    canvas.save();
-    canvas.clipPath(eye);
-    canvas.drawCircle(center, eyeW * 0.17, Paint()..color = AppColors.amber);
-    canvas.drawCircle(center, eyeW * 0.08, Paint()..color = AppColors.bg);
-    canvas.drawCircle(center + Offset(eyeW * 0.05, -eyeW * 0.05), eyeW * 0.03, Paint()..color = AppColors.text);
-    canvas.restore();
-
-    // Pontos de landmark ao redor do olho.
-    final dots = Paint()..color = AppColors.cyan;
-    for (var i = 0; i < 12; i++) {
-      final a = i / 12 * math.pi * 2;
-      canvas.drawCircle(
-          center + Offset(math.cos(a) * eyeW * 0.5, math.sin(a) * (eyeH + 4) * 0.95), 1.8, dots);
-    }
-
-    // Legenda EAR.
-    final tp = TextPainter(
-      text: TextSpan(
-        text: 'EAR ${(0.18 + 0.12 * open).toStringAsFixed(2)}',
-        style: const TextStyle(
-            fontFamily: displayFont, color: AppColors.text, fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 1),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(center.dx - tp.width / 2, center.dy + eyeW * 0.30));
+  /// Abertura da pálpebra: 1 = aberta. Uma piscada rápida (~0,5 s) por ciclo.
+  double get _openness {
+    const closeStart = 0.70, closed = 0.735, reopened = 0.80;
+    if (t >= closeStart && t < closed) return 1 - (t - closeStart) / (closed - closeStart);
+    if (t >= closed && t < reopened) return Curves.easeOut.transform((t - closed) / (reopened - closed));
+    return 1;
   }
 
   @override
-  bool shouldRepaint(covariant _GaugePainter old) => old.t != t;
+  void paint(Canvas canvas, Size size) {
+    final w = math.min(size.width * 0.50, size.height * 1.15);
+    final c = Offset(size.width / 2, size.height / 2);
+    final open = _openness;
+    final h = w * 0.27 * open; // meia-altura do olho (0 quando fechado)
+
+    // Contorno: duas curvas simétricas que se encontram nos cantos.
+    final left = Offset(c.dx - w / 2, c.dy);
+    final right = Offset(c.dx + w / 2, c.dy);
+    final eye = Path()
+      ..moveTo(left.dx, left.dy)
+      ..cubicTo(c.dx - w * 0.22, c.dy - h * 1.33, c.dx + w * 0.22, c.dy - h * 1.33, right.dx, right.dy)
+      ..cubicTo(c.dx + w * 0.22, c.dy + h * 1.33, c.dx - w * 0.22, c.dy + h * 1.33, left.dx, left.dy)
+      ..close();
+
+    // Íris em contorno, recortada pelo olho (some na piscada).
+    final line = Paint()
+      ..color = AppColors.accent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    canvas.save();
+    canvas.clipPath(eye);
+    final gaze = Offset(math.sin(t * math.pi * 2) * w * 0.05, 0);
+    canvas.drawCircle(c + gaze, w * 0.15, line);
+    canvas.restore();
+
+    canvas.drawPath(
+      eye,
+      Paint()
+        ..color = AppColors.accent
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _EyePainter old) => old.t != t;
 }

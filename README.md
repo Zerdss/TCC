@@ -35,8 +35,9 @@ Fluxo:
   - alertas: tela cheia e alerta progressivo (liga/desliga), testar bipe e sirene;
   - tela: permitir modo deitado;
   - dados: histórico, apagar calibração, restaurar padrões.
-- Design "Dark-First Utility" de `docs/design_guidelines.json`: fontes Barlow Condensed
-  (títulos/números) e Manrope (texto), ícone próprio e tela de abertura escura.
+- Design claro: fundo verde bem claro (quase branco), cartões brancos e destaque verde;
+  amarelo e vermelho só para ATENÇÃO e ALERTA. Fontes Barlow Condensed (títulos/números) e
+  Manrope (texto). Ilustração e ícone com um olho minimalista em contorno.
 
 ## Dados salvos no aparelho
 
@@ -108,7 +109,7 @@ lib/
     calibration_store.dart      limiares calibrados em shared_preferences
     settings_store.dart         ajustes da tela de Configurações
     csv_export.dart             exportação CSV
-  theme.dart                    paleta "Dark-First Utility" (docs/design_guidelines.json)
+  theme.dart                    paleta clara (verde quase branco) e tipografia
   vision/
     metrics.dart                EAR, MAR, média móvel, PERCLOS
     fatigue_engine.dart         limiares, calibração, máquina de estados temporal

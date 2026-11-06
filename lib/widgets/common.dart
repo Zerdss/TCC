@@ -33,7 +33,7 @@ class AppPage extends StatelessWidget {
           gradient: RadialGradient(
             center: Alignment(0.9, -1.1),
             radius: 1.2,
-            colors: [Color(0x14F59E0B), AppColors.bg],
+            colors: [Color(0x40CDEBD7), AppColors.bg],
           ),
         ),
         child: SafeArea(
@@ -84,7 +84,7 @@ class AppHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(11),
               border: Border.all(color: AppColors.lineStrong),
             ),
-            child: const Icon(Icons.remove_red_eye_outlined, color: AppColors.amber, size: 22),
+            child: const Icon(Icons.remove_red_eye_outlined, color: AppColors.accent, size: 22),
           ),
         const SizedBox(width: 10),
         const Expanded(
@@ -103,9 +103,9 @@ class AppHeader extends StatelessWidget {
         Container(
           padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 9, vertical: 7),
           decoration: BoxDecoration(
-            color: const Color(0xFF10251F),
+            color: AppColors.accentSoft,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF19513F)),
+            border: Border.all(color: const Color(0xFFA8D5B9)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -206,7 +206,7 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = secondary ? AppColors.text : AppColors.bg;
+    final fg = secondary ? AppColors.text : Colors.white;
     return SizedBox(
       width: double.infinity,
       height: 52,
@@ -215,7 +215,7 @@ class PrimaryButton extends StatelessWidget {
         icon: Icon(icon, color: onPressed == null ? AppColors.muted : fg),
         label: Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
         style: FilledButton.styleFrom(
-          backgroundColor: secondary ? AppColors.panel : AppColors.amber,
+          backgroundColor: secondary ? AppColors.panel : AppColors.accent,
           foregroundColor: fg,
           disabledBackgroundColor: AppColors.panel2,
           disabledForegroundColor: AppColors.muted,
@@ -252,7 +252,7 @@ class Panel extends StatelessWidget {
 }
 
 class StatusDot extends StatelessWidget {
-  const StatusDot({super.key, this.color = AppColors.amber, this.size = 7});
+  const StatusDot({super.key, this.color = AppColors.accent, this.size = 7});
   final Color color;
   final double size;
 

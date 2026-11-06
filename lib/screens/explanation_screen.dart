@@ -42,13 +42,13 @@ class ExplanationScreen extends StatelessWidget {
       (Icons.no_accounts_outlined, AppColors.red, 'Rosto fora da câmera',
           'Se o rosto some por 2 s aparece ATENÇÃO; por 4 s, ALERTA. Cobre a cabeça caída para fora do '
               'quadro e o celular mal posicionado.'),
-      (Icons.campaign_outlined, AppColors.amber, 'Alerta progressivo',
+      (Icons.campaign_outlined, AppColors.accent, 'Alerta progressivo',
           'O alerta começa com bipe, vibração e tela cheia piscando. Se continuar por mais de 4 s, vira '
               'sirene rápida com vibração longa. O botão "Estou acordado" silencia por 10 s.'),
       (Icons.graphic_eq, AppColors.green, 'Suavização e histerese',
           'EAR e MAR passam por uma média móvel dos últimos quadros para evitar ruído. Depois de um alerta, '
               'o sistema só volta ao NORMAL após 1 s contínuo de olhos abertos, boca neutra e cabeça erguida.'),
-      (Icons.center_focus_strong_outlined, AppColors.amber, 'Calibração pessoal',
+      (Icons.center_focus_strong_outlined, AppColors.accent, 'Calibração pessoal',
           'Limiar EAR = fechado + 28% × (aberto − fechado). Limiar MAR = 72% do bocejo, refinado pelo '
               'sorriso. Tudo fica salvo no aparelho e pode ser ajustado em Configurações.'),
     ];
@@ -72,7 +72,7 @@ class ExplanationScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(code, style: AppText.number.copyWith(color: AppColors.amber, fontSize: 22)),
+                      Text(code, style: AppText.number.copyWith(color: AppColors.accent, fontSize: 22)),
                       const SizedBox(height: 6),
                       Text(text, style: const TextStyle(color: AppColors.muted, fontSize: 11, height: 1.45)),
                     ],
@@ -95,10 +95,10 @@ class ExplanationScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: AppColors.panel2,
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.amber),
+                      border: Border.all(color: AppColors.accent),
                     ),
                     child: Text(steps[i].$1,
-                        style: const TextStyle(color: AppColors.amber, fontWeight: FontWeight.w800, fontSize: 11)),
+                        style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w800, fontSize: 11)),
                   ),
                   if (i < steps.length - 1) Expanded(child: Container(width: 1, color: AppColors.line)),
                 ]),
@@ -110,7 +110,7 @@ class ExplanationScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
-                          Icon(steps[i].$4, size: 19, color: AppColors.amber),
+                          Icon(steps[i].$4, size: 19, color: AppColors.accent),
                           const SizedBox(width: 8),
                           Expanded(child: Text(steps[i].$2, style: AppText.cardTitle)),
                         ]),

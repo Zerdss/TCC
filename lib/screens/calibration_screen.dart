@@ -186,14 +186,14 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                   borderRadius: BorderRadius.circular(14),
                   child: Container(
                     key: const Key('calibration-countdown'),
-                    color: const Color(0x99090D14),
+                    color: const Color(0xD9F1F8F3),
                     alignment: Alignment.center,
                     padding: const EdgeInsets.all(20),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       Text('PREPARE-SE', style: AppText.kicker.copyWith(fontSize: 16)),
                       const SizedBox(height: 4),
                       Text('$_countdown',
-                          style: AppText.number.copyWith(fontSize: 120, height: 1, color: AppColors.amber)),
+                          style: AppText.number.copyWith(fontSize: 120, height: 1, color: AppColors.accent)),
                       const SizedBox(height: 8),
                       Text(info.prepare,
                           textAlign: TextAlign.center, style: AppText.h3.copyWith(fontSize: 22)),
@@ -224,10 +224,10 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                           decoration: BoxDecoration(
                             color: AppColors.panel2,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: done ? AppColors.green : AppColors.amber),
+                            border: Border.all(color: done ? AppColors.green : AppColors.accent),
                           ),
                           child: Icon(done ? Icons.check_rounded : info.icon,
-                              color: done ? AppColors.green : AppColors.amber),
+                              color: done ? AppColors.green : AppColors.accent),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -247,11 +247,11 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                       Text(info.instruction, style: AppText.body.copyWith(color: AppColors.textSoft)),
                       const SizedBox(height: 6),
                       Row(children: [
-                        const Icon(Icons.lightbulb_outline, size: 14, color: AppColors.amberSoft),
+                        const Icon(Icons.lightbulb_outline, size: 14, color: AppColors.accentDark),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(info.tip,
-                              style: const TextStyle(color: AppColors.amberSoft, fontSize: 12)),
+                              style: const TextStyle(color: AppColors.accentDark, fontSize: 12)),
                         ),
                       ]),
                       const SizedBox(height: 18),
@@ -266,7 +266,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                                 value: v,
                                 minHeight: 8,
                                 backgroundColor: AppColors.panel2,
-                                color: done ? AppColors.green : AppColors.amber,
+                                color: done ? AppColors.green : AppColors.accent,
                               ),
                             ),
                           ),
@@ -361,7 +361,7 @@ class _StepIndicator extends StatelessWidget {
                   color: i < current
                       ? AppColors.green
                       : i == current
-                          ? AppColors.amber
+                          ? AppColors.accent
                           : AppColors.panel2,
                   borderRadius: BorderRadius.circular(5),
                 ),
@@ -372,7 +372,7 @@ class _StepIndicator extends StatelessWidget {
                   color: i < current
                       ? AppColors.green
                       : i == current
-                          ? AppColors.amber
+                          ? AppColors.accent
                           : AppColors.muted),
             ]),
           ),

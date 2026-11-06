@@ -101,7 +101,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         const SizedBox(height: 20),
         if (sessions == null)
-          const Center(child: CircularProgressIndicator(color: AppColors.amber))
+          const Center(child: CircularProgressIndicator(color: AppColors.accent))
         else if (sessions.isEmpty)
           const Panel(
             child: Row(children: [
@@ -264,7 +264,7 @@ class SessionDetailScreen extends StatelessWidget {
           future: s.id == null ? Future.value(s.events) : database.eventsFor(s.id!),
           builder: (context, snap) {
             final events = snap.data;
-            if (events == null) return const Center(child: CircularProgressIndicator(color: AppColors.amber));
+            if (events == null) return const Center(child: CircularProgressIndicator(color: AppColors.accent));
             if (events.isEmpty) {
               return const Text('Nenhum alerta ou aviso nesta sessão.', style: AppText.body);
             }

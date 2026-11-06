@@ -55,16 +55,16 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: assets/icon/icon.png
-  adaptive_icon_background: "#090D14"
+  adaptive_icon_background: "#F1F8F3"
   adaptive_icon_foreground: assets/icon/icon_foreground.png
   remove_alpha_ios: true
   min_sdk_android: 21
 
 # Tela de abertura escura: dart run flutter_native_splash:create
 flutter_native_splash:
-  color: "#090D14"
+  color: "#F1F8F3"
   image: assets/icon/icon_foreground.png
   android_12:
-    color: "#090D14"
+    color: "#F1F8F3"
     image: assets/icon/icon_foreground.png
-    icon_background_color: "#090D14"
+    icon_background_color: "#F1F8F3"

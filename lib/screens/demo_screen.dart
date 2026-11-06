@@ -79,7 +79,7 @@ class _DemoScreenState extends State<DemoScreen> {
         Expanded(
           child: OutlinedButton.icon(
             onPressed: _recalibrate,
-            icon: const Icon(Icons.restart_alt, color: AppColors.amber, size: 18),
+            icon: const Icon(Icons.restart_alt, color: AppColors.accent, size: 18),
             label: const FittedBox(child: Text('Recalibrar', maxLines: 1)),
           ),
         ),
@@ -248,7 +248,7 @@ class _QuickToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = onAlert ? AppColors.bg : (active ? AppColors.amber : AppColors.muted);
+    final fg = onAlert ? AppColors.bg : (active ? AppColors.accent : AppColors.muted);
     return Tooltip(
       message: tooltip,
       child: InkWell(
@@ -289,7 +289,7 @@ class _Telemetry extends StatelessWidget {
                 label: 'EAR',
                 hint: 'olhos',
                 value: m.ear.toStringAsFixed(2),
-                color: AppColors.amber,
+                color: AppColors.orange,
                 series: vision.earHistory,
                 maxValue: 0.45,
                 threshold: t.ear,
@@ -340,7 +340,7 @@ class _Telemetry extends StatelessWidget {
             ),
             _Chip(
               icon: Icons.timer_outlined,
-              color: m.closedMs > 0 ? AppColors.amber : AppColors.muted,
+              color: m.closedMs > 0 ? AppColors.yellow : AppColors.muted,
               text: 'Olhos fechados: ${(m.closedMs / 1000).toStringAsFixed(1)} s',
             ),
             if (s.headEnabled && m.faceVisible)
@@ -371,7 +371,7 @@ class _Telemetry extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Icon(Icons.tune, size: 16, color: AppColors.amber),
+              const Icon(Icons.tune, size: 16, color: AppColors.accent),
               const SizedBox(width: 8),
               const Expanded(child: Text('LIMIARES ATIVOS', style: AppText.section)),
               Text(t.calibrated ? 'calibrado' : 'padrão',

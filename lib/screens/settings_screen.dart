@@ -101,7 +101,7 @@ class SettingsScreen extends StatelessWidget {
                     child: OutlinedButton.icon(
                       key: const Key('button-testar-alerta'),
                       onPressed: () => vision.playAlertFeedback(force: true),
-                      icon: const Icon(Icons.play_arrow_rounded, color: AppColors.amber),
+                      icon: const Icon(Icons.play_arrow_rounded, color: AppColors.accent),
                       label: const FittedBox(child: Text('Testar alerta')),
                     ),
                   ),
@@ -468,7 +468,7 @@ class _SectionLabel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 20, bottom: 10),
       child: Row(children: [
-        Icon(icon, size: 16, color: AppColors.amber),
+        Icon(icon, size: 16, color: AppColors.accent),
         const SizedBox(width: 8),
         Text(text, style: AppText.section),
       ]),
@@ -515,7 +515,7 @@ class _SwitchRow extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(padding: const EdgeInsets.only(top: 2), child: Icon(icon, color: AppColors.amber, size: 22)),
+          Padding(padding: const EdgeInsets.only(top: 2), child: Icon(icon, color: AppColors.accent, size: 22)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -574,7 +574,7 @@ class _SliderRow extends StatelessWidget {
                 border: Border.all(color: AppColors.lineStrong),
               ),
               child: Text(valueLabel,
-                  style: AppText.number.copyWith(fontSize: 17, color: AppColors.amberSoft)),
+                  style: AppText.number.copyWith(fontSize: 17, color: AppColors.accentDark)),
             ),
           ]),
           const SizedBox(height: 4),
@@ -611,7 +611,7 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = danger ? AppColors.red : AppColors.amber;
+    final color = danger ? AppColors.red : AppColors.accent;
     return InkWell(
       onTap: onTap,
       child: Padding(
