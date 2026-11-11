@@ -19,6 +19,7 @@ class SettingsStore {
   static const _escalate = 'settings.escalatingAlert';
   static const _landscape = 'settings.allowLandscape';
   static const _autoCal = 'settings.autoAdvanceCalibration';
+  static const _reinforce = 'settings.forceReinforced';
 
   Future<StoredSettings> load() async {
     final p = await SharedPreferences.getInstance();
@@ -38,6 +39,7 @@ class SettingsStore {
       escalatingAlert: p.getBool(_escalate) ?? true,
       allowLandscape: p.getBool(_landscape) ?? false,
       autoAdvanceCalibration: p.getBool(_autoCal) ?? true,
+      forceReinforced: p.getBool(_reinforce) ?? false,
     );
   }
 
@@ -58,6 +60,7 @@ class SettingsStore {
     await p.setBool(_escalate, detection.escalatingAlert);
     await p.setBool(_landscape, detection.allowLandscape);
     await p.setBool(_autoCal, detection.autoAdvanceCalibration);
+    await p.setBool(_reinforce, detection.forceReinforced);
   }
 }
 
@@ -78,6 +81,7 @@ class StoredSettings {
     required this.escalatingAlert,
     required this.allowLandscape,
     this.autoAdvanceCalibration = true,
+    this.forceReinforced = false,
   });
 
   final bool sound;
@@ -95,6 +99,7 @@ class StoredSettings {
   final bool escalatingAlert;
   final bool allowLandscape;
   final bool autoAdvanceCalibration;
+  final bool forceReinforced;
 
   void applyTo(DetectionSettings d) {
     d
@@ -110,6 +115,7 @@ class StoredSettings {
       ..fullScreenAlert = fullScreenAlert
       ..escalatingAlert = escalatingAlert
       ..allowLandscape = allowLandscape
-      ..autoAdvanceCalibration = autoAdvanceCalibration;
+      ..autoAdvanceCalibration = autoAdvanceCalibration
+      ..forceReinforced = forceReinforced;
   }
 }

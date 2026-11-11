@@ -304,6 +304,11 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                     ],
                   ),
                 ),
+                if (vision.thresholds.eyeSeparation != null) ...[
+                  const SizedBox(height: 12),
+                  _EyeQualityBanner(low: vision.thresholds.lowEyeConfidence,
+                      usesProb: vision.thresholds.eyeProbThreshold != null),
+                ],
                 const SizedBox(height: 18),
                 PrimaryButton(
                   key: const Key('button-proxima'),
@@ -404,6 +409,48 @@ class _LiveValue extends StatelessWidget {
           Text(value, style: AppText.number.copyWith(fontSize: 16)),
         ]),
       ),
+    );
+  }
+}
+
+/// Resultado da etapa de olhos fechados: os olhos estão bem visíveis nesta
+/// posição do celular? Se não, o app liga o modo de reforço.
+class _EyeQualityBanner extends StatelessWidget {
+  const _EyeQualityBanner({required this.low, required this.usesProb});
+  final bool low;
+  final bool usesProb;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = low ? AppColors.yellow : AppColors.green;
+    return Container(
+      key: const Key('eye-quality'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(low ? Icons.visibility_off_outlined : Icons.check_circle_outline, color: color),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(low ? 'Olhos pouco visíveis nesta posição' : 'Olhos bem visíveis nesta posição',
+                style: AppText.cardTitle.copyWith(color: color)),
+            const SizedBox(height: 4),
+            Text(
+              low
+                  ? 'O app vai reforçar a detecção: a inclinação da cabeça fica mais sensível'
+                      '${usesProb ? ' e o olho fechado passa a ser medido também pela probabilidade do ML Kit' : ''}. '
+                      'A boca continua sendo analisada normalmente. Se puder, coloque o celular mais alto '
+                      'ou mais à frente do rosto.'
+                  : 'A diferença entre olho aberto e fechado ficou clara. Detecção normal.',
+              style: AppText.body.copyWith(fontSize: 12),
+            ),
+          ]),
+        ),
+      ]),
     );
   }
 }

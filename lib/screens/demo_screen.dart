@@ -363,6 +363,12 @@ class _Telemetry extends StatelessWidget {
                 color: AppColors.blue,
                 text: 'Boca aberta: ${(m.mouthOpenMs / 1000).toStringAsFixed(1)} s',
               ),
+            if (m.reinforced)
+              const _Chip(
+                icon: Icons.shield_outlined,
+                color: AppColors.yellow,
+                text: 'Reforço ligado: cabeça e boca',
+              ),
             _Chip(icon: Icons.speed, color: AppColors.muted, text: '${vision.fps.toStringAsFixed(1)} FPS'),
           ],
         ),
@@ -390,7 +396,7 @@ class _Telemetry extends StatelessWidget {
             Text(
               'Alerta: olhos fechados por ${formatSeconds(s.eyesAlertMs)} s contínuos (piscadas de 0,08 a 0,4 s '
               'ignoradas), bocejo sustentado por ${formatSeconds(s.yawnAlertMs)} s'
-              '${s.headEnabled ? ', cabeça caída (${s.headDropDeg.round()}°) por ${formatSeconds(s.headAlertMs)} s' : ''}'
+              '${s.headEnabled ? ', cabeça caída (${vision.engine.effectiveHeadDropDeg.round()}°) por ${formatSeconds(vision.engine.effectiveHeadAlertMs)} s${vision.engine.reinforced ? ' (reforço ligado)' : ''}' : ''}'
               '${s.faceLostEnabled ? ' ou rosto fora da câmera por ${formatSeconds(s.faceLostAlertMs)} s' : ''}. Média móvel de '
               '$smoothWindow quadros e histerese de 1,0 s para voltar ao normal. '
               'Ajuste tudo em Configurações (ícone no topo).',

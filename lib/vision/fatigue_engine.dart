@@ -42,6 +42,28 @@ const int blinkRateWindowMs = 60000;
 /// quase não muda mas os olhos ficam semicerrados.
 const double smileProbabilityThreshold = 0.6;
 
+/// Modo de reforço (olhos pouco visíveis, ex.: celular muito abaixo do rosto).
+/// Os olhos são considerados pouco visíveis quando, na calibração, o EAR com os
+/// olhos fechados fica a menos de 35% de distância do EAR com os olhos abertos
+/// (de frente, a diferença costuma ser bem maior: ~0,3 aberto contra ~0,1 fechado).
+const double eyeSeparationMin = 0.35;
+
+/// A probabilidade de olho aberto do ML Kit só substitui o EAR se separar bem
+/// aberto de fechado na calibração (diferença mínima entre as medianas).
+const double eyeProbSeparationMin = 0.4;
+
+/// Limiar da probabilidade: a 40% do caminho entre "fechado" e "aberto".
+const double eyeProbMargin = 0.4;
+
+/// No reforço, a cabeça fica mais sensível: 75% do ângulo e 80% do tempo.
+const double reinforcedHeadAngleFactor = 0.75;
+const double reinforcedHeadTimeFactor = 0.8;
+
+/// Ângulo do rosto em relação à câmera a partir do qual o app avisa que o
+/// celular está mal posicionado (muito abaixo/acima ou muito de lado).
+const double cameraPitchWarnDeg = 25;
+const double cameraYawWarnDeg = 30;
+
 /// Cabeça caindo: queda (graus) em relação à posição normal e tempo para alertar.
 const double headDropDefaultDeg = 20;
 const double headTiltDeg = 30;
@@ -98,6 +120,10 @@ class DetectionSettings {
   /// Calibração avança sozinha (com "plim" e vibração) ao concluir cada etapa.
   bool autoAdvanceCalibration = true;
 
+  /// Usa sempre o modo de reforço (cabeça mais sensível e probabilidade de olho
+  /// aberto), mesmo quando a calibração não indicou olhos pouco visíveis.
+  bool forceReinforced = false;
+
   /// ATENÇÃO aparece um pouco antes do alerta (mesma proporção do protótipo).
   int get eyesWarnMs => (eyesAlertMs * warnClosedMs / closedFatigueMs).round();
   int get mouthWarnMs => (yawnAlertMs * warnMouthMs / yawnMinMs).round();
@@ -118,6 +144,7 @@ class DetectionSettings {
     escalatingAlert = true;
     allowLandscape = false;
     autoAdvanceCalibration = true;
+    forceReinforced = false;
   }
 }
 
@@ -152,6 +179,8 @@ class FatigueMetrics {
     this.headDownMs = 0,
     this.faceMissingMs = 0,
     this.alertSinceMs = 0,
+    this.reinforced = false,
+    this.eyeProb,
   });
 
   final double ear;
@@ -180,6 +209,13 @@ class FatigueMetrics {
   /// Há quanto tempo o alerta atual está ativo (para o alerta progressivo).
   final int alertSinceMs;
 
+  /// Modo de reforço ativo (olhos pouco visíveis: cabeça mais sensível e
+  /// probabilidade de olho aberto do ML Kit no lugar do EAR, quando confiável).
+  final bool reinforced;
+
+  /// Probabilidade de olho aberto informada pelo ML Kit (média dos dois olhos).
+  final double? eyeProb;
+
   bool get faceVisible => faceMissingMs == 0;
 
   static const empty = FatigueMetrics();
@@ -199,7 +235,8 @@ class FatigueMetrics {
       );
     }
     final faceWarn = cfg.faceLostEnabled && faceMissingMs >= cfg.faceLostWarnMs;
-    final headWarn = cfg.headEnabled && headDownMs >= cfg.headWarnMs;
+    final headWarnMs = reinforced ? (cfg.headWarnMs * reinforcedHeadTimeFactor).round() : cfg.headWarnMs;
+    final headWarn = cfg.headEnabled && headDownMs >= headWarnMs;
     final eyesWarn = closedMs >= cfg.eyesWarnMs && !expression;
     final mouthWarn = mouthOpenMs >= cfg.mouthWarnMs;
     final blinkWarn = blinkRate >= cfg.blinkWarnRate;
@@ -234,9 +271,21 @@ class Thresholds {
   double? headPitch;
   double? headRoll;
 
+  /// A calibração mostrou olhos pouco visíveis (EAR aberto e fechado parecidos),
+  /// por exemplo com o celular muito abaixo do rosto. Liga o modo de reforço.
+  bool lowEyeConfidence = false;
+
+  /// Separação relativa entre EAR aberto e fechado medida na calibração (0 a 1).
+  double? eyeSeparation;
+
+  /// Limiar da probabilidade de olho aberto (ML Kit), usado no modo de reforço
+  /// quando ela separa melhor aberto de fechado. `null` = usar só o EAR.
+  double? eyeProbThreshold;
+
   double? _openEar;
   double? _closedEar;
   double? _yawnMar;
+  double? _openProb;
 
   void reset() {
     ear = earDefault;
@@ -244,7 +293,10 @@ class Thresholds {
     marNeutral = marNeutralDefault;
     calibrated = false;
     headPitch = headRoll = null;
-    _openEar = _closedEar = _yawnMar = null;
+    lowEyeConfidence = false;
+    eyeSeparation = null;
+    eyeProbThreshold = null;
+    _openEar = _closedEar = _yawnMar = _openProb = null;
   }
 
   /// Restaura limiares salvos anteriormente.
@@ -254,6 +306,9 @@ class Thresholds {
     required double marNeutral,
     double? headPitch,
     double? headRoll,
+    bool lowEyeConfidence = false,
+    double? eyeSeparation,
+    double? eyeProbThreshold,
   }) {
     reset();
     this.ear = ear;
@@ -261,16 +316,21 @@ class Thresholds {
     this.marNeutral = marNeutral;
     this.headPitch = headPitch;
     this.headRoll = headRoll;
+    this.lowEyeConfidence = lowEyeConfidence;
+    this.eyeSeparation = eyeSeparation;
+    this.eyeProbThreshold = eyeProbThreshold;
     calibrated = true;
   }
 
   /// Aplica o resultado (medianas) de uma etapa de calibração.
   /// 0 = olhos abertos, 1 = olhos fechados, 2 = bocejo, 3 = sorriso (opcional).
-  void applyCalibration(int step, double medianEar, double medianMar) {
+  /// [medianProb] = mediana da probabilidade de olho aberto do ML Kit (se houver).
+  void applyCalibration(int step, double medianEar, double medianMar, {double? medianProb}) {
     calibrated = true;
     switch (step) {
       case 0:
         _openEar = medianEar;
+        _openProb = medianProb;
       case 1:
         _closedEar = medianEar;
         // Limiar a 28% do caminho entre "fechado" e "aberto" (margem de segurança
@@ -278,6 +338,17 @@ class Thresholds {
         final open = _openEar;
         if (open != null) {
           ear = clampD(medianEar + earMargin * (open - medianEar), earMin, earMax);
+          // Qualidade dos olhos nesta posição: quão diferentes ficaram aberto e fechado.
+          final sep = open > 0 ? (open - medianEar) / open : 0.0;
+          eyeSeparation = clampD(sep, 0, 1);
+          lowEyeConfidence = sep < eyeSeparationMin;
+        }
+        // Probabilidade do ML Kit: só é usada se separar bem aberto de fechado.
+        final openP = _openProb;
+        if (openP != null && medianProb != null && openP - medianProb >= eyeProbSeparationMin) {
+          eyeProbThreshold = medianProb + eyeProbMargin * (openP - medianProb);
+        } else {
+          eyeProbThreshold = null;
         }
       case 2:
         _yawnMar = medianMar;
@@ -302,12 +373,14 @@ class CalibrationSampler {
   final List<double> _mars = [];
   final List<double> _pitches = [];
   final List<double> _rolls = [];
+  final List<double> _probs = [];
 
   void reset() {
     _ears.clear();
     _mars.clear();
     _pitches.clear();
     _rolls.clear();
+    _probs.clear();
   }
 
   bool get done => _ears.length >= samplesPerStep;
@@ -316,12 +389,14 @@ class CalibrationSampler {
   double get medianMar => median(_mars);
   double? get medianPitch => _pitches.isEmpty ? null : median(_pitches);
   double? get medianRoll => _rolls.isEmpty ? null : median(_rolls);
+  double? get medianProb => _probs.isEmpty ? null : median(_probs);
 
   /// Retorna `true` quando a etapa acabou de ser concluída neste quadro.
-  bool add(double ear, double mar, {double? pitch, double? roll}) {
+  bool add(double ear, double mar, {double? pitch, double? roll, double? eyeProb}) {
     if (done) return false;
     _ears.add(ear);
     _mars.add(mar);
+    if (eyeProb != null) _probs.add(eyeProb);
     if (pitch != null && roll != null) {
       _pitches.add(pitch);
       _rolls.add(roll);
@@ -399,6 +474,7 @@ class FatigueEngine {
       alert: _alert,
       alertReason: _reason,
       alertSinceMs: _alert ? now - _alertSince : 0,
+      reinforced: reinforced,
     );
   }
 
@@ -406,11 +482,25 @@ class FatigueEngine {
   ({double ear, double mar}) smooth(double rawEar, double rawMar) =>
       (ear: _earAvg.push(rawEar), mar: _marAvg.push(rawMar));
 
+  /// Modo de reforço: calibração indicou olhos pouco visíveis, ou o usuário pediu.
+  bool get reinforced => thresholds.lowEyeConfidence || settings.forceReinforced;
+
+  /// Ângulo de queda da cabeça para alertar (menor no modo de reforço).
+  double get effectiveHeadDropDeg =>
+      reinforced ? settings.headDropDeg * reinforcedHeadAngleFactor : settings.headDropDeg;
+
+  /// Tempo com a cabeça caída para alertar (menor no modo de reforço).
+  int get effectiveHeadAlertMs =>
+      reinforced ? (settings.headAlertMs * reinforcedHeadTimeFactor).round() : settings.headAlertMs;
+
   /// Processa um quadro já suavizado. [now] em ms (monotônico, > 0).
   /// [pitch] e [roll] são os ângulos da cabeça informados pelo detector
-  /// (pitch positivo = olhando para cima).
-  FatigueMetrics process(double ear, double mar, int now, {double? pitch, double? roll, double? smile}) {
+  /// (pitch positivo = olhando para cima); [smile] e [eyeProb] são as
+  /// probabilidades de sorriso e de olho aberto do ML Kit.
+  FatigueMetrics process(double ear, double mar, int now,
+      {double? pitch, double? roll, double? smile, double? eyeProb}) {
     final t = thresholds;
+    final boost = reinforced;
     _lastFaceSeen = now;
     _lastEar = ear;
     _lastMar = mar;
@@ -418,7 +508,12 @@ class FatigueEngine {
     // Checagem cruzada: MAR elevado indica sorriso/fala — não conta como olho fechado.
     final expression = settings.smileFilter &&
         (mar >= t.marNeutral || (smile ?? 0) >= smileProbabilityThreshold);
-    final eyesClosed = ear < t.ear && !expression;
+    // Olho fechado: pelo EAR; no reforço, pela probabilidade do ML Kit quando ela
+    // separou bem aberto de fechado na calibração (depende menos do ângulo).
+    final probTh = t.eyeProbThreshold;
+    final useProb = boost && probTh != null && eyeProb != null;
+    final eyesClosedRaw = useProb ? eyeProb < probTh : ear < t.ear;
+    final eyesClosed = eyesClosedRaw && !expression;
     if (eyesClosed) {
       if (_closedSince == 0) _closedSince = now;
       _closedLastSeen = now;
@@ -453,27 +548,27 @@ class FatigueEngine {
       baseRoll ??= roll;
       headDrop = basePitch! - pitch;
       headTilt = roll - baseRoll!;
-      headDown = settings.headEnabled && (headDrop >= settings.headDropDeg || headTilt.abs() >= headTiltDeg);
+      headDown = settings.headEnabled && (headDrop >= effectiveHeadDropDeg || headTilt.abs() >= headTiltDeg);
       if (headDown) {
         if (_headSince == 0) _headSince = now;
         _headLastSeen = now;
       } else if (now - _headLastSeen > gapToleranceMs) {
         _headSince = 0;
         // Postura normal e olhos abertos: a referência acompanha devagar a posição do motorista.
-        if (!_alert && closedMs == 0 && headDrop.abs() < settings.headDropDeg / 2) {
+        if (!_alert && closedMs == 0 && headDrop.abs() < effectiveHeadDropDeg / 2) {
           basePitch = basePitch! + 0.02 * (pitch - basePitch!);
           baseRoll = baseRoll! + 0.02 * (roll - baseRoll!);
         }
       }
     }
     final headDownMs = _headSince != 0 ? now - _headSince : 0;
-    final headAlert = settings.headEnabled && headDownMs >= settings.headAlertMs;
+    final headAlert = settings.headEnabled && headDownMs >= effectiveHeadAlertMs;
 
     final drowsy = closedMs >= settings.eyesAlertMs;
     if (drowsy || yawning || headAlert) {
       _raise(drowsy ? AlertReason.eyes : headAlert ? AlertReason.head : AlertReason.yawn, now);
     } else if (_alert) {
-      final stable = ear >= t.ear && mar < t.mar && !headDown;
+      final stable = !eyesClosedRaw && mar < t.mar && !headDown;
       if (!stable) {
         _normalSince = 0;
       } else {
@@ -501,6 +596,8 @@ class FatigueEngine {
       headRoll: headTilt,
       headDownMs: headDownMs,
       alertSinceMs: _alert ? now - _alertSince : 0,
+      reinforced: boost,
+      eyeProb: eyeProb,
     );
   }
 }

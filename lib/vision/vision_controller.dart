@@ -457,6 +457,9 @@ class VisionController extends ChangeNotifier {
     final saved = await calibrationStore?.load();
     if (saved == null) return false;
     thresholds.restore(
+      lowEyeConfidence: saved.lowEyeConfidence,
+      eyeSeparation: saved.eyeSeparation,
+      eyeProbThreshold: saved.eyeProbThreshold,
       ear: saved.ear,
       mar: saved.mar,
       marNeutral: saved.marNeutral,
@@ -555,7 +558,7 @@ class VisionController extends ChangeNotifier {
       allPoints: all,
       rings: [leftEye, rightEye, [...upperLipTop, ...lowerLipBottom]],
     );
-    guide = _framing(face.boundingBox, imageSize);
+    guide = _framing(face.boundingBox, imageSize, face.headEulerAngleX, face.headEulerAngleY);
 
     final leftEar = eyeAspectRatio(leftEye);
     final rightEar = eyeAspectRatio(rightEye);
@@ -570,6 +573,9 @@ class VisionController extends ChangeNotifier {
 
     final pitch = face.headEulerAngleX;
     final roll = face.headEulerAngleZ;
+    // Probabilidade de olho aberto (média dos dois olhos), do classificador do ML Kit.
+    final probs = [face.leftEyeOpenProbability, face.rightEyeOpenProbability].whereType<double>().toList();
+    final eyeProb = probs.isEmpty ? null : probs.reduce((a, b) => a + b) / probs.length;
 
     final step = calibrationStep;
     if (step != null) {
@@ -577,10 +583,10 @@ class VisionController extends ChangeNotifier {
         metrics = FatigueMetrics(ear: smooth.ear, mar: smooth.mar);
         return;
       }
-      final finished = _sampler.add(smooth.ear, smooth.mar, pitch: pitch, roll: roll);
+      final finished = _sampler.add(smooth.ear, smooth.mar, pitch: pitch, roll: roll, eyeProb: eyeProb);
       calibrationProgress = _sampler.progress;
       if (finished) {
-        thresholds.applyCalibration(step, _sampler.medianEar, _sampler.medianMar);
+        thresholds.applyCalibration(step, _sampler.medianEar, _sampler.medianMar, medianProb: _sampler.medianProb);
         // Etapa "olhos abertos": guarda a posição normal da cabeça.
         final p = _sampler.medianPitch, r = _sampler.medianRoll;
         if (step == 0 && p != null && r != null) {
@@ -594,7 +600,8 @@ class VisionController extends ChangeNotifier {
     }
 
     _applyMonitoring(
-      engine.process(smooth.ear, smooth.mar, now, pitch: pitch, roll: roll, smile: face.smilingProbability),
+      engine.process(smooth.ear, smooth.mar, now,
+          pitch: pitch, roll: roll, smile: face.smilingProbability, eyeProb: eyeProb),
       now,
     );
   }
@@ -660,7 +667,8 @@ class VisionController extends ChangeNotifier {
     if (list.length > 24) list.removeAt(0);
   }
 
-  FramingGuide _framing(Rect box, Size image) {
+  /// [pitch] e [yaw] = ângulos do rosto em relação à câmera (graus, ML Kit).
+  FramingGuide _framing(Rect box, Size image, double? pitch, double? yaw) {
     final faceWidth = box.width / image.width;
     final cx = box.center.dx / image.width;
     final cy = box.center.dy / image.height;
@@ -668,6 +676,16 @@ class VisionController extends ChangeNotifier {
     if (faceWidth < 0.25) return const FramingGuide('Aproxime-se da câmera', false);
     if (faceWidth > 0.85) return const FramingGuide('Afaste-se um pouco da câmera', false);
     if (!centered) return const FramingGuide('Centralize o rosto no quadro', false);
+    // Celular visto muito de baixo/cima ou de lado: os olhos aparecem achatados.
+    if (pitch != null && pitch > cameraPitchWarnDeg) {
+      return const FramingGuide('Celular muito abaixo do rosto: suba-o se puder', false);
+    }
+    if (pitch != null && pitch < -cameraPitchWarnDeg) {
+      return const FramingGuide('Celular muito acima do rosto: baixe-o se puder', false);
+    }
+    if (yaw != null && yaw.abs() > cameraYawWarnDeg) {
+      return const FramingGuide('Celular muito de lado: vire-o para o rosto', false);
+    }
     return const FramingGuide('Posicionamento ideal', true);
   }
 

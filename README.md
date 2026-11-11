@@ -17,6 +17,12 @@ Fluxo:
 - **Cabeça caindo**: ângulos da cabeça do ML Kit; queda de 20° (ou inclinação lateral de 30°)
   em relação à posição normal medida na calibração, por 1,5 s → ALERTA.
 - **Rosto fora da câmera**: 2 s → ATENÇÃO; 4 s → ALERTA.
+- **Modo de reforço (celular em ângulo ruim)**: se na calibração o EAR com olhos abertos e fechados
+  ficar parecido (separação < 35%, ex.: celular muito abaixo do rosto), o app liga um reforço: a
+  inclinação da cabeça fica mais sensível (75% do ângulo e 80% do tempo) e o olho fechado passa a ser
+  medido pela probabilidade de olho aberto do ML Kit, quando ela separa bem aberto de fechado. A boca
+  segue igual. O app também avisa quando o celular está muito abaixo, acima ou de lado do rosto.
+  Pode ser ligado sempre em Configurações.
 - Status em 3 níveis (NORMAL / ATENÇÃO / ALERTA DE SONOLÊNCIA) com **alerta progressivo**:
   tela cheia piscando, bipe e vibração; se continuar por 4 s, sirene rápida e vibração longa.
   Botão **"Estou acordado"** silencia por 10 s. O som toca no canal de alarme (Android) e

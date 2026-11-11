@@ -40,6 +40,12 @@ class ExplanationScreen extends StatelessWidget {
           'O detector informa os ângulos da cabeça. Se ela baixa 20° (ajustável) em relação à posição '
               'normal medida na calibração — ou tomba mais de 30° para o lado — por 1,5 s, é ALERTA: '
               'é o "cochilo" típico, que pode acontecer antes de os olhos fecharem por completo.'),
+      (Icons.shield_outlined, AppColors.yellow, 'Reforço com celular em ângulo ruim',
+          'Visto muito de baixo, o olho parece achatado e o EAR fica pouco confiável. Se a calibração mostra '
+              'olho aberto e fechado parecidos, o app liga um reforço: a inclinação da cabeça fica mais sensível '
+              '(75% do ângulo e 80% do tempo) e o olho fechado passa a ser medido pela probabilidade do ML Kit, '
+              'quando ela separa melhor. A boca segue igual. O app também avisa se o celular está muito abaixo, '
+              'acima ou de lado.'),
       (Icons.no_accounts_outlined, AppColors.red, 'Rosto fora da câmera',
           'Se o rosto some por 2 s aparece ATENÇÃO; por 4 s, ALERTA. Cobre a cabeça caída para fora do '
               'quadro e o celular mal posicionado.'),

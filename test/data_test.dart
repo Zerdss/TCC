@@ -149,4 +149,17 @@ void main() {
     await store.clear();
     expect(await store.load(), isNull);
   });
+
+  test('CalibrationStore guarda a qualidade dos olhos (modo de reforço)', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = CalibrationStore();
+    final t = Thresholds()
+      ..applyCalibration(0, 0.20, 0.05, medianProb: 0.9)
+      ..applyCalibration(1, 0.15, 0.05, medianProb: 0.1);
+    await store.save(t);
+    final saved = (await store.load())!;
+    expect(saved.lowEyeConfidence, isTrue);
+    expect(saved.eyeSeparation, closeTo(0.25, 1e-9));
+    expect(saved.eyeProbThreshold, closeTo(0.42, 1e-9));
+  });
 }

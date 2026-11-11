@@ -11,6 +11,9 @@ class CalibrationStore {
   static const _date = 'calibration.savedAt';
   static const _pitch = 'calibration.headPitch';
   static const _roll = 'calibration.headRoll';
+  static const _lowEye = 'calibration.lowEyeConfidence';
+  static const _eyeSep = 'calibration.eyeSeparation';
+  static const _eyeProb = 'calibration.eyeProbThreshold';
 
   Future<void> save(Thresholds t) async {
     final prefs = await SharedPreferences.getInstance();
@@ -18,6 +21,18 @@ class CalibrationStore {
     await prefs.setDouble(_mar, t.mar);
     await prefs.setDouble(_neutral, t.marNeutral);
     await prefs.setString(_date, DateTime.now().toIso8601String());
+    await prefs.setBool(_lowEye, t.lowEyeConfidence);
+    final sep = t.eyeSeparation, pt = t.eyeProbThreshold;
+    if (sep != null) {
+      await prefs.setDouble(_eyeSep, sep);
+    } else {
+      await prefs.remove(_eyeSep);
+    }
+    if (pt != null) {
+      await prefs.setDouble(_eyeProb, pt);
+    } else {
+      await prefs.remove(_eyeProb);
+    }
     final hp = t.headPitch, hr = t.headRoll;
     if (hp != null && hr != null) {
       await prefs.setDouble(_pitch, hp);
@@ -43,12 +58,15 @@ class CalibrationStore {
       savedAt: DateTime.parse(date),
       headPitch: prefs.getDouble(_pitch),
       headRoll: prefs.getDouble(_roll),
+      lowEyeConfidence: prefs.getBool(_lowEye) ?? false,
+      eyeSeparation: prefs.getDouble(_eyeSep),
+      eyeProbThreshold: prefs.getDouble(_eyeProb),
     );
   }
 
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    for (final k in [_ear, _mar, _neutral, _date, _pitch, _roll]) {
+    for (final k in [_ear, _mar, _neutral, _date, _pitch, _roll, _lowEye, _eyeSep, _eyeProb]) {
       await prefs.remove(k);
     }
   }
@@ -62,7 +80,13 @@ class SavedCalibration {
     required this.savedAt,
     this.headPitch,
     this.headRoll,
+    this.lowEyeConfidence = false,
+    this.eyeSeparation,
+    this.eyeProbThreshold,
   });
+  final bool lowEyeConfidence;
+  final double? eyeSeparation;
+  final double? eyeProbThreshold;
   final double? headPitch;
   final double? headRoll;
   final double ear;

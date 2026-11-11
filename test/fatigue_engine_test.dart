@@ -9,10 +9,11 @@ FatigueMetrics run(FatigueEngine e,
     double mar = 0.1,
     double? pitch,
     double? roll,
-    double? smile}) {
+    double? smile,
+    double? eyeProb}) {
   var m = FatigueMetrics.empty;
   for (var t = from; t <= to; t += 33) {
-    m = e.process(ear, mar, t, pitch: pitch, roll: roll, smile: smile);
+    m = e.process(ear, mar, t, pitch: pitch, roll: roll, smile: smile, eyeProb: eyeProb);
   }
   return m;
 }
@@ -210,6 +211,62 @@ void main() {
       final e = FatigueEngine(Thresholds(), DetectionSettings()..smileFilter = false);
       final m = run(e, from: 1, to: 3000, ear: 0.12, mar: 0.05, smile: 0.9);
       expect(m.alert, isTrue);
+    });
+  });
+
+  group('modo de reforço (olhos pouco visíveis, ex.: celular muito baixo)', () {
+    test('calibração de frente: olhos bem visíveis, sem reforço', () {
+      final t = Thresholds()
+        ..applyCalibration(0, 0.30, 0.05, medianProb: 0.9)
+        ..applyCalibration(1, 0.10, 0.05, medianProb: 0.1);
+      expect(t.lowEyeConfidence, isFalse);
+      expect(t.eyeSeparation, closeTo(2 / 3, 1e-9));
+      expect(t.eyeProbThreshold, closeTo(0.1 + 0.4 * 0.8, 1e-9));
+    });
+
+    test('calibração de baixo: aberto e fechado parecidos → reforço ligado', () {
+      final t = Thresholds()
+        ..applyCalibration(0, 0.20, 0.05, medianProb: 0.85)
+        ..applyCalibration(1, 0.15, 0.05, medianProb: 0.15);
+      expect(t.lowEyeConfidence, isTrue);
+      expect(FatigueEngine(t).reinforced, isTrue);
+    });
+
+    test('probabilidade que não separa bem não é usada', () {
+      final t = Thresholds()
+        ..applyCalibration(0, 0.20, 0.05, medianProb: 0.6)
+        ..applyCalibration(1, 0.15, 0.05, medianProb: 0.4);
+      expect(t.eyeProbThreshold, isNull);
+    });
+
+    test('no reforço, olho fechado pela probabilidade gera alerta mesmo com EAR acima do limite', () {
+      final t = Thresholds()
+        ..applyCalibration(0, 0.20, 0.05, medianProb: 0.9)
+        ..applyCalibration(1, 0.15, 0.05, medianProb: 0.1);
+      final e = FatigueEngine(t);
+      final ear = t.ear + 0.02; // o EAR sozinho diria "aberto"
+      run(e, from: 1, to: 500, ear: ear, eyeProb: 0.95);
+      final m = run(e, from: 533, to: 2000, ear: ear, eyeProb: 0.05);
+      expect(m.reinforced, isTrue);
+      expect(m.alertReason, AlertReason.eyes);
+    });
+
+    test('sem reforço, a probabilidade não muda a decisão', () {
+      final t = Thresholds()
+        ..applyCalibration(0, 0.30, 0.05, medianProb: 0.9)
+        ..applyCalibration(1, 0.10, 0.05, medianProb: 0.1);
+      final e = FatigueEngine(t);
+      final m = run(e, from: 1, to: 2500, ear: t.ear + 0.05, eyeProb: 0.05);
+      expect(m.alert, isFalse);
+    });
+
+    test('no reforço, a cabeça fica mais sensível (16° por 1,3 s já alerta)', () {
+      final normal = FatigueEngine(Thresholds())..setHeadBaseline(0, 0);
+      final mNormal = run(normal, from: 1, to: 1300, ear: 0.30, pitch: -16, roll: 0);
+      expect(mNormal.alert, isFalse);
+      final forced = FatigueEngine(Thresholds(), DetectionSettings()..forceReinforced = true)..setHeadBaseline(0, 0);
+      final mForced = run(forced, from: 1, to: 1300, ear: 0.30, pitch: -16, roll: 0);
+      expect(mForced.alertReason, AlertReason.head);
     });
   });
 }
