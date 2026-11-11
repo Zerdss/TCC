@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'metrics.dart';
 
 // ---------------------------------------------------------------------------
@@ -63,6 +65,42 @@ const double reinforcedHeadTimeFactor = 0.8;
 /// celular está mal posicionado (muito abaixo/acima ou muito de lado).
 const double cameraPitchWarnDeg = 25;
 const double cameraYawWarnDeg = 30;
+
+// ---------------------------------------------------------------------------
+// Movimentos normais × sonolência (evita alarme falso ao olhar para baixo, para
+// o lado ou ao se mexer). Valores iniciais: ajustar com testes reais.
+// ---------------------------------------------------------------------------
+
+/// Rosto virado para o lado (giro em relação à posição normal): os olhos ficam
+/// distorcidos na imagem e não são avaliados.
+const double lookAwayYawDeg = 25;
+
+/// Cabeça abaixada a partir deste ângulo: as pálpebras descem ao olhar para
+/// baixo, então o olho fechado passa a exigir mais certeza.
+const double lookDownDeg = 12;
+
+/// Olhar fora da estrada (para baixo ou para o lado) por mais que isto → ATENÇÃO
+/// (aviso silencioso, nunca o alarme de sonolência).
+const int lookAwayWarnMs = 2500;
+
+/// Movimento brusco da cabeça (graus por segundo): a medição pausa um instante.
+const double motionSpeedDegPerS = 120;
+const int motionHoldMs = 300;
+
+/// Olho "claramente aberto": probabilidade do ML Kit ≥ 0,6 ou EAR 15% acima do limite.
+const double eyesOpenProb = 0.6;
+const double eyesOpenEarFactor = 1.15;
+
+/// Com a cabeça abaixada, o olho só conta como fechado com EAR 15% abaixo do
+/// limite (e probabilidade < 0,5, quando houver).
+const double lookDownEarFactor = 0.85;
+const double lookDownClosedProb = 0.5;
+
+/// Cabeça caída com olhos fechados em pelo menos 30% do tempo → alerta no tempo
+/// normal; com olhos indefinidos → alerta só no dobro do tempo; com olhos abertos
+/// na maior parte do tempo → é "olhando para baixo" e não alerta.
+const double headClosedShare = 0.3;
+const double headOpenShare = 0.5;
 
 /// Cabeça caindo: queda (graus) em relação à posição normal e tempo para alertar.
 const double headDropDefaultDeg = 20;
@@ -181,6 +219,10 @@ class FatigueMetrics {
     this.alertSinceMs = 0,
     this.reinforced = false,
     this.eyeProb,
+    this.lookingDown = false,
+    this.lookingSide = false,
+    this.moving = false,
+    this.lookAwayMs = 0,
   });
 
   final double ear;
@@ -216,6 +258,18 @@ class FatigueMetrics {
   /// Probabilidade de olho aberto informada pelo ML Kit (média dos dois olhos).
   final double? eyeProb;
 
+  /// Cabeça baixa com os olhos abertos: olhando para baixo (não é sonolência).
+  final bool lookingDown;
+
+  /// Rosto virado para o lado: olhando para o lado (não é sonolência).
+  final bool lookingSide;
+
+  /// Movimento brusco da cabeça: medição pausada por um instante.
+  final bool moving;
+
+  /// Há quanto tempo o motorista olha para baixo ou para o lado.
+  final int lookAwayMs;
+
   bool get faceVisible => faceMissingMs == 0;
 
   static const empty = FatigueMetrics();
@@ -240,6 +294,15 @@ class FatigueMetrics {
     final eyesWarn = closedMs >= cfg.eyesWarnMs && !expression;
     final mouthWarn = mouthOpenMs >= cfg.mouthWarnMs;
     final blinkWarn = blinkRate >= cfg.blinkWarnRate;
+    final lookWarn = lookAwayMs >= lookAwayWarnMs;
+    if (lookWarn && !headWarn && !eyesWarn) {
+      return (
+        status: FatigueStatus.attention,
+        notice: lookingSide
+            ? 'Olhando para o lado • volte a atenção à estrada'
+            : 'Olhando para baixo • volte a atenção à estrada',
+      );
+    }
     if (faceWarn || headWarn || eyesWarn || mouthWarn || blinkWarn) {
       return (
         status: FatigueStatus.attention,
@@ -270,6 +333,7 @@ class Thresholds {
   /// Posição normal da cabeça (graus) medida na etapa "olhos abertos".
   double? headPitch;
   double? headRoll;
+  double? headYaw;
 
   /// A calibração mostrou olhos pouco visíveis (EAR aberto e fechado parecidos),
   /// por exemplo com o celular muito abaixo do rosto. Liga o modo de reforço.
@@ -292,7 +356,7 @@ class Thresholds {
     mar = marDefault;
     marNeutral = marNeutralDefault;
     calibrated = false;
-    headPitch = headRoll = null;
+    headPitch = headRoll = headYaw = null;
     lowEyeConfidence = false;
     eyeSeparation = null;
     eyeProbThreshold = null;
@@ -306,6 +370,7 @@ class Thresholds {
     required double marNeutral,
     double? headPitch,
     double? headRoll,
+    double? headYaw,
     bool lowEyeConfidence = false,
     double? eyeSeparation,
     double? eyeProbThreshold,
@@ -316,6 +381,7 @@ class Thresholds {
     this.marNeutral = marNeutral;
     this.headPitch = headPitch;
     this.headRoll = headRoll;
+    this.headYaw = headYaw;
     this.lowEyeConfidence = lowEyeConfidence;
     this.eyeSeparation = eyeSeparation;
     this.eyeProbThreshold = eyeProbThreshold;
@@ -374,6 +440,7 @@ class CalibrationSampler {
   final List<double> _pitches = [];
   final List<double> _rolls = [];
   final List<double> _probs = [];
+  final List<double> _yaws = [];
 
   void reset() {
     _ears.clear();
@@ -381,6 +448,7 @@ class CalibrationSampler {
     _pitches.clear();
     _rolls.clear();
     _probs.clear();
+    _yaws.clear();
   }
 
   bool get done => _ears.length >= samplesPerStep;
@@ -390,10 +458,12 @@ class CalibrationSampler {
   double? get medianPitch => _pitches.isEmpty ? null : median(_pitches);
   double? get medianRoll => _rolls.isEmpty ? null : median(_rolls);
   double? get medianProb => _probs.isEmpty ? null : median(_probs);
+  double? get medianYaw => _yaws.isEmpty ? null : median(_yaws);
 
   /// Retorna `true` quando a etapa acabou de ser concluída neste quadro.
-  bool add(double ear, double mar, {double? pitch, double? roll, double? eyeProb}) {
+  bool add(double ear, double mar, {double? pitch, double? roll, double? yaw, double? eyeProb}) {
     if (done) return false;
+    if (yaw != null) _yaws.add(yaw);
     _ears.add(ear);
     _mars.add(mar);
     if (eyeProb != null) _probs.add(eyeProb);
@@ -430,6 +500,16 @@ class FatigueEngine {
   /// ajusta devagar enquanto o motorista está atento.
   double? basePitch;
   double? baseRoll;
+  double? baseYaw;
+
+  // Movimento e olhar fora da estrada.
+  int _lastPoseTime = 0;
+  double? _lastPitchSample, _lastYawSample;
+  int _motionUntil = 0;
+  int _lookAwaySince = 0;
+  int _lastFrameTime = 0;
+  // Tempo, durante a cabeça caída atual, com olhos fechados / claramente abertos.
+  int _hdClosedMs = 0, _hdOpenMs = 0, _hdTotalMs = 0;
 
   double _lastEar = 0, _lastMar = 0, _lastPerclos = 0;
 
@@ -440,14 +520,18 @@ class FatigueEngine {
     _blinks.clear();
     _closedSince = _closedLastSeen = _mouthSince = _mouthLastSeen = _normalSince = 0;
     _headSince = _headLastSeen = _lastFaceSeen = _alertSince = 0;
+    _lastPoseTime = _motionUntil = _lookAwaySince = _lastFrameTime = 0;
+    _lastPitchSample = _lastYawSample = null;
+    _hdClosedMs = _hdOpenMs = _hdTotalMs = 0;
     _alert = false;
     _reason = AlertReason.none;
   }
 
   /// Define a posição normal da cabeça (ex.: mediana da etapa "olhos abertos").
-  void setHeadBaseline(double pitch, double roll) {
+  void setHeadBaseline(double pitch, double roll, [double? yaw]) {
     basePitch = pitch;
     baseRoll = roll;
+    if (yaw != null) baseYaw = yaw;
   }
 
   void _raise(AlertReason reason, int now) {
@@ -463,6 +547,8 @@ class FatigueEngine {
     // Sem rosto não há olhos/boca/cabeça para medir: zera os cronômetros.
     _closedSince = _mouthSince = _headSince = 0;
     _normalSince = 0;
+    _lookAwaySince = 0;
+    _hdClosedMs = _hdOpenMs = _hdTotalMs = 0;
     final missing = _lastFaceSeen == 0 ? 0 : now - _lastFaceSeen;
     if (settings.faceLostEnabled && missing >= settings.faceLostAlertMs) _raise(AlertReason.faceLost, now);
     return FatigueMetrics(
@@ -498,21 +584,66 @@ class FatigueEngine {
   /// (pitch positivo = olhando para cima); [smile] e [eyeProb] são as
   /// probabilidades de sorriso e de olho aberto do ML Kit.
   FatigueMetrics process(double ear, double mar, int now,
-      {double? pitch, double? roll, double? smile, double? eyeProb}) {
+      {double? pitch, double? roll, double? yaw, double? smile, double? eyeProb}) {
     final t = thresholds;
     final boost = reinforced;
+    final dt = _lastFrameTime == 0 ? 0 : math.min(now - _lastFrameTime, 200);
+    _lastFrameTime = now;
     _lastFaceSeen = now;
     _lastEar = ear;
     _lastMar = mar;
 
+    // ---- posição e movimento da cabeça
+    var headDrop = 0.0, headTilt = 0.0, yawDelta = 0.0;
+    if (pitch != null && roll != null) {
+      basePitch ??= pitch;
+      baseRoll ??= roll;
+      headDrop = basePitch! - pitch;
+      headTilt = roll - baseRoll!;
+    }
+    if (yaw != null) {
+      baseYaw ??= yaw;
+      yawDelta = yaw - baseYaw!;
+    }
+    // Movimento brusco: a imagem e os pontos do rosto ficam instáveis por um instante.
+    if (pitch != null && yaw != null) {
+      final lp = _lastPitchSample, ly = _lastYawSample;
+      if (lp != null && ly != null && now > _lastPoseTime) {
+        final speed = ((pitch - lp).abs() + (yaw - ly).abs()) * 1000 / (now - _lastPoseTime);
+        if (speed >= motionSpeedDegPerS) _motionUntil = now + motionHoldMs;
+      }
+      _lastPitchSample = pitch;
+      _lastYawSample = yaw;
+      _lastPoseTime = now;
+    }
+    final moving = now < _motionUntil;
+    final lookingSide = yawDelta.abs() >= lookAwayYawDeg;
+    final headLowered = headDrop >= lookDownDeg;
+
+    // ---- olhos
     // Checagem cruzada: MAR elevado indica sorriso/fala — não conta como olho fechado.
     final expression = settings.smileFilter &&
         (mar >= t.marNeutral || (smile ?? 0) >= smileProbabilityThreshold);
-    // Olho fechado: pelo EAR; no reforço, pela probabilidade do ML Kit quando ela
-    // separou bem aberto de fechado na calibração (depende menos do ângulo).
+    // De lado ou em movimento, os olhos não são avaliados (contorno distorcido/instável).
+    final measurable = !moving && !lookingSide;
     final probTh = t.eyeProbThreshold;
     final useProb = boost && probTh != null && eyeProb != null;
-    final eyesClosedRaw = useProb ? eyeProb < probTh : ear < t.ear;
+    bool eyesClosedRaw;
+    if (!measurable) {
+      eyesClosedRaw = false;
+    } else if (useProb) {
+      // Reforço: probabilidade do ML Kit (mais exigente com a cabeça abaixada).
+      eyesClosedRaw = eyeProb < (headLowered ? probTh * 0.6 : probTh);
+    } else if (headLowered) {
+      // Olhando para baixo as pálpebras descem: exige EAR bem baixo e, se houver,
+      // a confirmação da probabilidade do ML Kit.
+      eyesClosedRaw = ear < t.ear * lookDownEarFactor && (eyeProb == null || eyeProb < lookDownClosedProb);
+    } else {
+      eyesClosedRaw = ear < t.ear;
+    }
+    final eyesOpenClear = measurable &&
+        !eyesClosedRaw &&
+        ((eyeProb != null && eyeProb >= eyesOpenProb) || ear >= t.ear * eyesOpenEarFactor);
     final eyesClosed = eyesClosedRaw && !expression;
     if (eyesClosed) {
       if (_closedSince == 0) _closedSince = now;
@@ -527,6 +658,7 @@ class FatigueEngine {
     final closedMs = _closedSince != 0 ? now - _closedSince : 0;
     _blinks.removeWhere((time) => now - time > blinkRateWindowMs);
 
+    // ---- boca
     final mouthOpen = mar >= t.mar;
     if (mouthOpen) {
       if (_mouthSince == 0) _mouthSince = now;
@@ -541,34 +673,53 @@ class FatigueEngine {
     final perclos = _perclos.add(now, closedMs > blinkMaxMs);
     _lastPerclos = perclos;
 
-    // Cabeça caindo: queda do pitch (ou inclinação lateral forte) em relação à posição normal.
-    var headDrop = 0.0, headTilt = 0.0, headDown = false;
+    // ---- cabeça caindo: queda do pitch (ou inclinação lateral forte), conferida com os olhos
+    var headDown = false;
     if (pitch != null && roll != null) {
-      basePitch ??= pitch;
-      baseRoll ??= roll;
-      headDrop = basePitch! - pitch;
-      headTilt = roll - baseRoll!;
       headDown = settings.headEnabled && (headDrop >= effectiveHeadDropDeg || headTilt.abs() >= headTiltDeg);
       if (headDown) {
-        if (_headSince == 0) _headSince = now;
+        if (_headSince == 0) {
+          _headSince = now;
+          _hdClosedMs = _hdOpenMs = _hdTotalMs = 0;
+        }
         _headLastSeen = now;
+        _hdTotalMs += dt;
+        if (eyesClosedRaw) _hdClosedMs += dt;
+        if (eyesOpenClear) _hdOpenMs += dt;
       } else if (now - _headLastSeen > gapToleranceMs) {
         _headSince = 0;
         // Postura normal e olhos abertos: a referência acompanha devagar a posição do motorista.
-        if (!_alert && closedMs == 0 && headDrop.abs() < effectiveHeadDropDeg / 2) {
+        if (!_alert && closedMs == 0 && headDrop.abs() < effectiveHeadDropDeg / 2 && !lookingSide) {
           basePitch = basePitch! + 0.02 * (pitch - basePitch!);
           baseRoll = baseRoll! + 0.02 * (roll - baseRoll!);
+          if (yaw != null && baseYaw != null) baseYaw = baseYaw! + 0.02 * (yaw - baseYaw!);
         }
       }
     }
     final headDownMs = _headSince != 0 ? now - _headSince : 0;
-    final headAlert = settings.headEnabled && headDownMs >= effectiveHeadAlertMs;
+    final total = math.max(_hdTotalMs, 1);
+    final closedShare = _hdClosedMs / total, openShare = _hdOpenMs / total;
+    // Cabeça baixa com os olhos abertos a maior parte do tempo = olhando para baixo.
+    final lookingDown = headDown && headDownMs > 0 && openShare >= headOpenShare;
+    final headAlert = settings.headEnabled &&
+        !lookingDown &&
+        ((headDownMs >= effectiveHeadAlertMs && closedShare >= headClosedShare) ||
+            headDownMs >= 2 * effectiveHeadAlertMs);
+
+    // ---- olhar fora da estrada (só aviso, nunca o alarme de sonolência)
+    final lookingAway = lookingSide || lookingDown;
+    if (lookingAway) {
+      if (_lookAwaySince == 0) _lookAwaySince = now;
+    } else {
+      _lookAwaySince = 0;
+    }
+    final lookAwayMs = _lookAwaySince != 0 ? now - _lookAwaySince : 0;
 
     final drowsy = closedMs >= settings.eyesAlertMs;
     if (drowsy || yawning || headAlert) {
       _raise(drowsy ? AlertReason.eyes : headAlert ? AlertReason.head : AlertReason.yawn, now);
     } else if (_alert) {
-      final stable = !eyesClosedRaw && mar < t.mar && !headDown;
+      final stable = !eyesClosedRaw && mar < t.mar && (!headDown || lookingDown);
       if (!stable) {
         _normalSince = 0;
       } else {
@@ -594,10 +745,14 @@ class FatigueEngine {
       alertReason: _reason,
       headPitch: headDrop,
       headRoll: headTilt,
-      headDownMs: headDownMs,
       alertSinceMs: _alert ? now - _alertSince : 0,
       reinforced: boost,
       eyeProb: eyeProb,
+      lookingDown: lookingDown,
+      lookingSide: lookingSide,
+      moving: moving,
+      lookAwayMs: lookAwayMs,
+      headDownMs: lookingDown ? 0 : headDownMs,
     );
   }
 }

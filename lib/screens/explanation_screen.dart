@@ -38,8 +38,15 @@ class ExplanationScreen extends StatelessWidget {
               'por pouco tempo e são ignorados (tolerância de 150 ms para falhas de detecção).'),
       (Icons.airline_seat_flat_angled_outlined, AppColors.red, 'Cabeça caindo',
           'O detector informa os ângulos da cabeça. Se ela baixa 20° (ajustável) em relação à posição '
-              'normal medida na calibração — ou tomba mais de 30° para o lado — por 1,5 s, é ALERTA: '
-              'é o "cochilo" típico, que pode acontecer antes de os olhos fecharem por completo.'),
+              'normal medida na calibração — ou tomba mais de 30° para o lado — por 1,5 s com os olhos '
+              'fechados, é ALERTA: é o "cochilo" típico. Se não dá para ver bem os olhos, o alerta espera o '
+              'dobro do tempo (3 s).'),
+      (Icons.visibility_outlined, AppColors.blue, 'Movimento normal não é sono',
+          'Olhar o retrovisor, o rádio ou o celular não deve disparar o alarme. Com a cabeça virada mais de 25° '
+              'para o lado, o olho aparece distorcido e não é medido. Com a cabeça baixa, se os olhos continuam '
+              'abertos é "olhando para baixo", e não cochilo; e o olho só conta como fechado se estiver bem mais '
+              'fechado que o normal (a pálpebra baixa ao olhar para baixo). Movimentos rápidos da cabeça (mais de '
+              '120°/s) pausam a medição. Se o desvio do olhar passa de 2,5 s, o app mostra ATENÇÃO para voltar à estrada.'),
       (Icons.shield_outlined, AppColors.yellow, 'Reforço com celular em ângulo ruim',
           'Visto muito de baixo, o olho parece achatado e o EAR fica pouco confiável. Se a calibração mostra '
               'olho aberto e fechado parecidos, o app liga um reforço: a inclinação da cabeça fica mais sensível '

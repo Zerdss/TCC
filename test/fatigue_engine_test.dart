@@ -9,11 +9,12 @@ FatigueMetrics run(FatigueEngine e,
     double mar = 0.1,
     double? pitch,
     double? roll,
+    double? yaw,
     double? smile,
     double? eyeProb}) {
   var m = FatigueMetrics.empty;
   for (var t = from; t <= to; t += 33) {
-    m = e.process(ear, mar, t, pitch: pitch, roll: roll, smile: smile, eyeProb: eyeProb);
+    m = e.process(ear, mar, t, pitch: pitch, roll: roll, yaw: yaw, smile: smile, eyeProb: eyeProb);
   }
   return m;
 }
@@ -122,14 +123,17 @@ void main() {
   });
 
   group('cabeça caindo', () {
-    test('queda de 25° por mais de 1,5 s → ALERTA (motivo: cabeça)', () {
+    // EAR 0,20 com limite 0,19: nem claramente fechado nem claramente aberto (indefinido).
+    test('queda de 25° com olhos indefinidos → ATENÇÃO e ALERTA (cabeça) no dobro do tempo', () {
       final e = FatigueEngine(Thresholds())..setHeadBaseline(5, 0);
       run(e, from: 1, to: 1000, ear: 0.30, pitch: 5, roll: 0);
-      var m = run(e, from: 1033, to: 1900, ear: 0.30, pitch: -20, roll: 0); // ~0,9 s
+      var m = run(e, from: 1033, to: 1900, ear: 0.20, pitch: -20, roll: 0); // ~0,9 s
       expect(m.alert, isFalse);
       expect(m.classify(e.settings).status, FatigueStatus.attention);
       expect(m.headPitch, closeTo(25, 1e-9));
-      m = run(e, from: 1933, to: 2700, ear: 0.30, pitch: -20, roll: 0);
+      m = run(e, from: 1933, to: 2700, ear: 0.20, pitch: -20, roll: 0); // ~1,7 s: ainda não
+      expect(m.alert, isFalse);
+      m = run(e, from: 2733, to: 4200, ear: 0.20, pitch: -20, roll: 0); // > 3 s
       expect(m.alert, isTrue);
       expect(m.alertReason, AlertReason.head);
       expect(m.classify(e.settings).notice, contains('cabeça'));
@@ -137,7 +141,7 @@ void main() {
 
     test('inclinação lateral forte também conta', () {
       final e = FatigueEngine(Thresholds())..setHeadBaseline(0, 0);
-      final m = run(e, from: 1, to: 2000, ear: 0.30, pitch: 0, roll: 40);
+      final m = run(e, from: 1, to: 3500, ear: 0.20, pitch: 0, roll: 40);
       expect(m.alertReason, AlertReason.head);
     });
 
@@ -260,13 +264,71 @@ void main() {
       expect(m.alert, isFalse);
     });
 
-    test('no reforço, a cabeça fica mais sensível (16° por 1,3 s já alerta)', () {
+    test('no reforço, a cabeça fica mais sensível (16° já conta como caída)', () {
       final normal = FatigueEngine(Thresholds())..setHeadBaseline(0, 0);
-      final mNormal = run(normal, from: 1, to: 1300, ear: 0.30, pitch: -16, roll: 0);
+      final mNormal = run(normal, from: 1, to: 2600, ear: 0.20, pitch: -16, roll: 0);
       expect(mNormal.alert, isFalse);
       final forced = FatigueEngine(Thresholds(), DetectionSettings()..forceReinforced = true)..setHeadBaseline(0, 0);
-      final mForced = run(forced, from: 1, to: 1300, ear: 0.30, pitch: -16, roll: 0);
+      final mForced = run(forced, from: 1, to: 2600, ear: 0.20, pitch: -16, roll: 0);
       expect(mForced.alertReason, AlertReason.head);
+    });
+  });
+
+  group('movimentos normais não geram alarme', () {
+    test('olhar para baixo com os olhos abertos: sem alarme, só ATENÇÃO após 2,5 s', () {
+      final e = FatigueEngine(Thresholds())..setHeadBaseline(0, 0, 0);
+      run(e, from: 1, to: 500, ear: 0.30, pitch: 0, roll: 0, yaw: 0, eyeProb: 0.9);
+      var m = run(e, from: 533, to: 2000, ear: 0.30, pitch: -25, roll: 0, yaw: 0, eyeProb: 0.9);
+      expect(m.lookingDown, isTrue);
+      expect(m.alert, isFalse);
+      expect(m.classify(e.settings).status, FatigueStatus.normal);
+      m = run(e, from: 2033, to: 4500, ear: 0.30, pitch: -25, roll: 0, yaw: 0, eyeProb: 0.9);
+      expect(m.alert, isFalse);
+      expect(m.classify(e.settings).notice, contains('Olhando para baixo'));
+    });
+
+    test('olhar para baixo com as pálpebras baixas (EAR um pouco abaixo do limite) não alerta', () {
+      final e = FatigueEngine(Thresholds())..setHeadBaseline(0, 0, 0);
+      // limite 0,19: 0,17 diria "fechado" de frente, mas com a cabeça baixa exige EAR < 0,16.
+      final m = run(e, from: 1, to: 3000, ear: 0.17, pitch: -25, roll: 0, yaw: 0, eyeProb: 0.7);
+      expect(m.alert, isFalse);
+      expect(m.closedMs, 0);
+    });
+
+    test('cochilo de verdade (cabeça caindo + olhos fechados) alerta', () {
+      final e = FatigueEngine(Thresholds())..setHeadBaseline(0, 0, 0);
+      run(e, from: 1, to: 500, ear: 0.30, pitch: 0, roll: 0, yaw: 0, eyeProb: 0.9);
+      final m = run(e, from: 533, to: 2200, ear: 0.08, pitch: -25, roll: 0, yaw: 0, eyeProb: 0.05);
+      expect(m.alert, isTrue);
+    });
+
+    test('olhar para o lado (olho distorcido na imagem): sem alarme, ATENÇÃO após 2,5 s', () {
+      final e = FatigueEngine(Thresholds())..setHeadBaseline(0, 0, 0);
+      run(e, from: 1, to: 500, ear: 0.30, pitch: 0, roll: 0, yaw: 0);
+      final m = run(e, from: 533, to: 4000, ear: 0.10, pitch: 0, roll: 0, yaw: 40);
+      expect(m.lookingSide, isTrue);
+      expect(m.alert, isFalse);
+      expect(m.closedMs, 0);
+      expect(m.classify(e.settings).notice, contains('Olhando para o lado'));
+    });
+
+    test('movimento brusco da cabeça pausa a medição dos olhos', () {
+      final e = FatigueEngine(Thresholds())..setHeadBaseline(0, 0, 0);
+      var m = FatigueMetrics.empty;
+      for (var t = 1, i = 0; t <= 2500; t += 33, i++) {
+        // cabeça balançando ~300°/s, olhos "fechados" na imagem pelo borrão
+        m = e.process(0.10, 0.1, t, pitch: 0, roll: 0, yaw: i.isEven ? 0 : 10);
+      }
+      expect(m.moving, isTrue);
+      expect(m.alert, isFalse);
+    });
+
+    test('voltar a olhar a estrada encerra o aviso', () {
+      final e = FatigueEngine(Thresholds())..setHeadBaseline(0, 0, 0);
+      run(e, from: 1, to: 3000, ear: 0.30, pitch: 0, roll: 0, yaw: 40);
+      final m = run(e, from: 3033, to: 3600, ear: 0.30, pitch: 0, roll: 0, yaw: 0);
+      expect(m.lookAwayMs, 0);
+      expect(m.classify(e.settings).status, FatigueStatus.normal);
     });
   });
 }

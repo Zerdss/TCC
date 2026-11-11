@@ -335,7 +335,7 @@ class VisionController extends ChangeNotifier {
     calibrationStep = null;
     engine.reset();
     final hp = thresholds.headPitch, hr = thresholds.headRoll;
-    if (hp != null && hr != null) engine.setHeadBaseline(hp, hr);
+    if (hp != null && hr != null) engine.setHeadBaseline(hp, hr, thresholds.headYaw);
     earHistory.clear();
     marHistory.clear();
     perclosHistory.clear();
@@ -465,6 +465,7 @@ class VisionController extends ChangeNotifier {
       marNeutral: saved.marNeutral,
       headPitch: saved.headPitch,
       headRoll: saved.headRoll,
+      headYaw: saved.headYaw,
     );
     engine.reset();
     return true;
@@ -573,6 +574,7 @@ class VisionController extends ChangeNotifier {
 
     final pitch = face.headEulerAngleX;
     final roll = face.headEulerAngleZ;
+    final yaw = face.headEulerAngleY;
     // Probabilidade de olho aberto (média dos dois olhos), do classificador do ML Kit.
     final probs = [face.leftEyeOpenProbability, face.rightEyeOpenProbability].whereType<double>().toList();
     final eyeProb = probs.isEmpty ? null : probs.reduce((a, b) => a + b) / probs.length;
@@ -583,16 +585,18 @@ class VisionController extends ChangeNotifier {
         metrics = FatigueMetrics(ear: smooth.ear, mar: smooth.mar);
         return;
       }
-      final finished = _sampler.add(smooth.ear, smooth.mar, pitch: pitch, roll: roll, eyeProb: eyeProb);
+      final finished = _sampler.add(smooth.ear, smooth.mar, pitch: pitch, roll: roll, yaw: yaw, eyeProb: eyeProb);
       calibrationProgress = _sampler.progress;
       if (finished) {
         thresholds.applyCalibration(step, _sampler.medianEar, _sampler.medianMar, medianProb: _sampler.medianProb);
         // Etapa "olhos abertos": guarda a posição normal da cabeça.
         final p = _sampler.medianPitch, r = _sampler.medianRoll;
         if (step == 0 && p != null && r != null) {
-          engine.setHeadBaseline(p, r);
+          final y = _sampler.medianYaw;
+          engine.setHeadBaseline(p, r, y);
           thresholds.headPitch = p;
           thresholds.headRoll = r;
+          thresholds.headYaw = y;
         }
       }
       metrics = FatigueMetrics(ear: smooth.ear, mar: smooth.mar);
@@ -601,7 +605,7 @@ class VisionController extends ChangeNotifier {
 
     _applyMonitoring(
       engine.process(smooth.ear, smooth.mar, now,
-          pitch: pitch, roll: roll, smile: face.smilingProbability, eyeProb: eyeProb),
+          pitch: pitch, roll: roll, yaw: yaw, smile: face.smilingProbability, eyeProb: eyeProb),
       now,
     );
   }

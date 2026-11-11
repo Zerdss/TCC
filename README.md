@@ -15,7 +15,13 @@ Fluxo:
   ou bocejo sustentado por 1,8 s geram **ALERTA**; checagem cruzada EAR × MAR para
   sorriso/fala; histerese de 1 s para voltar ao normal.
 - **Cabeça caindo**: ângulos da cabeça do ML Kit; queda de 20° (ou inclinação lateral de 30°)
-  em relação à posição normal medida na calibração, por 1,5 s → ALERTA.
+  em relação à posição normal medida na calibração, por 1,5 s com olhos fechados → ALERTA
+  (com olhos indefinidos, espera 3 s).
+- **Movimento normal não é sono** (evita alarme falso): cabeça virada mais de 25° para o lado →
+  olhos não são medidos (ficam distorcidos); cabeça baixa com olhos abertos → "olhando para baixo",
+  sem alarme, e o olho só conta como fechado se estiver bem abaixo do limiar (pálpebra baixa ao
+  olhar para baixo); giro rápido da cabeça (> 120°/s) pausa a medição. Desvio do olhar por mais de
+  2,5 s → ATENÇÃO ("volte a atenção à estrada").
 - **Rosto fora da câmera**: 2 s → ATENÇÃO; 4 s → ALERTA.
 - **Modo de reforço (celular em ângulo ruim)**: se na calibração o EAR com olhos abertos e fechados
   ficar parecido (separação < 35%, ex.: celular muito abaixo do rosto), o app liga um reforço: a

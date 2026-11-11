@@ -12,6 +12,7 @@ class CalibrationStore {
   static const _pitch = 'calibration.headPitch';
   static const _roll = 'calibration.headRoll';
   static const _lowEye = 'calibration.lowEyeConfidence';
+  static const _yaw = 'calibration.headYaw';
   static const _eyeSep = 'calibration.eyeSeparation';
   static const _eyeProb = 'calibration.eyeProbThreshold';
 
@@ -22,6 +23,12 @@ class CalibrationStore {
     await prefs.setDouble(_neutral, t.marNeutral);
     await prefs.setString(_date, DateTime.now().toIso8601String());
     await prefs.setBool(_lowEye, t.lowEyeConfidence);
+    final hy = t.headYaw;
+    if (hy != null) {
+      await prefs.setDouble(_yaw, hy);
+    } else {
+      await prefs.remove(_yaw);
+    }
     final sep = t.eyeSeparation, pt = t.eyeProbThreshold;
     if (sep != null) {
       await prefs.setDouble(_eyeSep, sep);
@@ -59,6 +66,7 @@ class CalibrationStore {
       headPitch: prefs.getDouble(_pitch),
       headRoll: prefs.getDouble(_roll),
       lowEyeConfidence: prefs.getBool(_lowEye) ?? false,
+      headYaw: prefs.getDouble(_yaw),
       eyeSeparation: prefs.getDouble(_eyeSep),
       eyeProbThreshold: prefs.getDouble(_eyeProb),
     );
@@ -66,7 +74,7 @@ class CalibrationStore {
 
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    for (final k in [_ear, _mar, _neutral, _date, _pitch, _roll, _lowEye, _eyeSep, _eyeProb]) {
+    for (final k in [_ear, _mar, _neutral, _date, _pitch, _roll, _lowEye, _eyeSep, _eyeProb, _yaw]) {
       await prefs.remove(k);
     }
   }
@@ -81,10 +89,12 @@ class SavedCalibration {
     this.headPitch,
     this.headRoll,
     this.lowEyeConfidence = false,
+    this.headYaw,
     this.eyeSeparation,
     this.eyeProbThreshold,
   });
   final bool lowEyeConfidence;
+  final double? headYaw;
   final double? eyeSeparation;
   final double? eyeProbThreshold;
   final double? headPitch;

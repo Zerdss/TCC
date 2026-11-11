@@ -363,6 +363,24 @@ class _Telemetry extends StatelessWidget {
                 color: AppColors.blue,
                 text: 'Boca aberta: ${(m.mouthOpenMs / 1000).toStringAsFixed(1)} s',
               ),
+            if (m.moving)
+              const _Chip(
+                icon: Icons.motion_photos_pause_outlined,
+                color: AppColors.muted,
+                text: 'Movimento: medição pausada',
+              ),
+            if (m.lookingSide)
+              _Chip(
+                icon: Icons.swap_horiz,
+                color: AppColors.blue,
+                text: 'Olhando para o lado: ${(m.lookAwayMs / 1000).toStringAsFixed(1)} s',
+              ),
+            if (m.lookingDown)
+              _Chip(
+                icon: Icons.south,
+                color: AppColors.blue,
+                text: 'Olhando para baixo (olhos abertos): ${(m.lookAwayMs / 1000).toStringAsFixed(1)} s',
+              ),
             if (m.reinforced)
               const _Chip(
                 icon: Icons.shield_outlined,
@@ -399,6 +417,8 @@ class _Telemetry extends StatelessWidget {
               '${s.headEnabled ? ', cabeça caída (${vision.engine.effectiveHeadDropDeg.round()}°) por ${formatSeconds(vision.engine.effectiveHeadAlertMs)} s${vision.engine.reinforced ? ' (reforço ligado)' : ''}' : ''}'
               '${s.faceLostEnabled ? ' ou rosto fora da câmera por ${formatSeconds(s.faceLostAlertMs)} s' : ''}. Média móvel de '
               '$smoothWindow quadros e histerese de 1,0 s para voltar ao normal. '
+              'Olhar para o lado ou para baixo com os olhos abertos não dispara alarme (só ATENÇÃO após 2,5 s), '
+              'e movimentos bruscos pausam a medição. '
               'Ajuste tudo em Configurações (ícone no topo).',
               style: AppText.body.copyWith(fontSize: 12),
             ),
