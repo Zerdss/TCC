@@ -128,12 +128,60 @@ void main() {
   test('CSV usa ; e uma linha por sessão/evento', () {
     final s = sampleSession();
     final csv = sessionsToCsv([s]).trim().split('\n');
-    expect(csv, hasLength(2));
-    expect(csv.first, startsWith('id;inicio;fim;duracao_s'));
-    expect(csv[1].split(';'), hasLength(14));
+    expect(csv, hasLength(3)); // cabeçalho, sessão e TOTAL
+    expect(csv.first, startsWith('Sessão;Data;Início;Fim;Duração;Total de alertas'));
+    final row = csv[1].split(';');
+    expect(row, hasLength(sessionsCsvHeader.length));
+    expect(row[0], '1');
+    expect(row[1], csvDate(s.startedAt));
+    expect(row[4], '00:00:30');
+    expect(row[5], '2');
+    expect(row[11], '5,0'); // PERCLOS em %, vírgula decimal
+    expect(row.last, 'Sim');
+    expect(csv[2], startsWith('TOTAL;1 sessão'));
     final ev = eventsToCsv(s.events).trim().split('\n');
     expect(ev, hasLength(4));
-    expect(ev[2], contains(';eyes;'));
+    expect(ev.first, 'Sessão;Data;Horário;Tempo na sessão;Tipo;EAR (olhos);MAR (boca);PERCLOS (%)');
+    expect(ev[2], contains(';ALERTA - olhos fechados;'));
+  });
+
+  test('CSV: sessões em ordem cronológica, numeradas, e eventos ligados à sessão', () {
+    final a = sampleSession();
+    final later = SessionRecord(
+      id: 7,
+      startedAt: a.startedAt.add(const Duration(hours: 2)),
+      endedAt: a.startedAt.add(const Duration(hours: 3, minutes: 5)),
+      alertsEyes: 0,
+      alertsYawn: 0,
+      attentionCount: 0,
+      maxPerclos: 0.1,
+      avgBlinkRate: 15,
+      earThreshold: 0.2,
+      marThreshold: 0.6,
+      calibrated: false,
+    );
+    final first = SessionRecord.fromMap({...a.toMap(), 'id': 3});
+    final csv = sessionsToCsv([later, first]).trim().split('\n');
+    expect(csv[1].split(';')[2], csvTime(first.startedAt));
+    expect(csv[2].split(';')[4], '01:05:00');
+    expect(csv[2].split(';').last, 'Não');
+    expect(csv[3], startsWith('TOTAL;2 sessões;;;01:05:30'));
+    final ev = SessionEvent(
+        sessionId: 7,
+        time: later.startedAt.add(const Duration(minutes: 3, seconds: 4)),
+        type: EventType.head,
+        ear: 0.2,
+        mar: 0.1,
+        perclos: 0.03);
+    final row = eventsToCsv([ev], sessions: [later, first]).trim().split('\n')[1].split(';');
+    expect(row[0], '2');
+    expect(row[3], '00:03:04');
+    expect(row[4], 'ALERTA - cabeça caindo');
+  });
+
+  test('CSV escapa campos com ponto e vírgula', () {
+    expect(csvField('a;b'), '"a;b"');
+    expect(csvField('diz "oi"'), '"diz ""oi"""');
   });
 
   test('CalibrationStore salva e restaura limiares', () async {
