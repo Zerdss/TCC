@@ -363,6 +363,12 @@ class _Telemetry extends StatelessWidget {
                 color: AppColors.blue,
                 text: 'Boca aberta: ${(m.mouthOpenMs / 1000).toStringAsFixed(1)} s',
               ),
+            if (vision.thresholds.phonePosition case final pos?)
+              _Chip(
+                icon: Icons.smartphone,
+                color: pos.isFront ? AppColors.green : AppColors.muted,
+                text: 'Celular: ${pos.label}',
+              ),
             if (m.moving)
               const _Chip(
                 icon: Icons.motion_photos_pause_outlined,

@@ -47,6 +47,13 @@ class ExplanationScreen extends StatelessWidget {
               'abertos é "olhando para baixo", e não cochilo; e o olho só conta como fechado se estiver bem mais '
               'fechado que o normal (a pálpebra baixa ao olhar para baixo). Movimentos rápidos da cabeça (mais de '
               '120°/s) pausam a medição. Se o desvio do olhar passa de 2,5 s, o app mostra ATENÇÃO para voltar à estrada.'),
+      (Icons.smartphone, AppColors.blue, 'Posição do celular',
+          'Na calibração, com você olhando para a estrada, o app mede o ângulo do rosto na câmera e descobre '
+              'onde o celular está: de frente (reto), abaixo, acima ou de lado do rosto (ou combinações, como '
+              '"abaixo e de lado"). Todos os limites — olhos, boca e cabeça — são medidos nessa posição, então '
+              'a cabeça "normal" é a sua posição real, não a de frente. Se o celular está bem abaixo/acima '
+              '(25° ou mais) ou bem de lado (30° ou mais), o reforço liga sozinho. Mudou o celular de lugar? '
+              'Calibre de novo.'),
       (Icons.shield_outlined, AppColors.yellow, 'Reforço com celular em ângulo ruim',
           'Visto muito de baixo, o olho parece achatado e o EAR fica pouco confiável. Se a calibração mostra '
               'olho aberto e fechado parecidos, o app liga um reforço: a inclinação da cabeça fica mais sensível '

@@ -23,6 +23,11 @@ Fluxo:
   olhar para baixo); giro rápido da cabeça (> 120°/s) pausa a medição. Desvio do olhar por mais de
   2,5 s → ATENÇÃO ("volte a atenção à estrada").
 - **Rosto fora da câmera**: 2 s → ATENÇÃO; 4 s → ALERTA.
+- **Posição do celular**: na calibração (olhos abertos, olhando para a estrada) o app mede o ângulo do
+  rosto na câmera e classifica o celular como de frente (reto), abaixo, acima ou de lado do rosto
+  (ou combinações). A posição aparece na calibração, no painel ao vivo e em Configurações; os
+  limites e a posição "normal" da cabeça são os dessa posição. Bem abaixo/acima (≥ 25°) ou bem de
+  lado (≥ 30°) → reforço automático. Mudou o celular de lugar: recalibrar.
 - **Modo de reforço (celular em ângulo ruim)**: se na calibração o EAR com olhos abertos e fechados
   ficar parecido (separação < 35%, ex.: celular muito abaixo do rosto), o app liga um reforço: a
   inclinação da cabeça fica mais sensível (75% do ângulo e 80% do tempo) e o olho fechado passa a ser

@@ -331,4 +331,41 @@ void main() {
       expect(m.classify(e.settings).status, FatigueStatus.normal);
     });
   });
+
+  group('posição do celular', () {
+    test('rosto de frente na câmera → celular de frente (reto), sem reforço', () {
+      const p = PhonePosition(3, -4);
+      expect(p.label, 'De frente (reto)');
+      expect(p.isFront, isTrue);
+      expect(p.needsReinforcement, isFalse);
+    });
+
+    test('rosto "olhando para cima" na câmera → celular abaixo', () {
+      expect(const PhonePosition(18, 0).label, 'Abaixo do rosto');
+      expect(const PhonePosition(18, 0).needsReinforcement, isFalse);
+      expect(const PhonePosition(32, 0).label, 'Bem abaixo do rosto');
+      expect(const PhonePosition(32, 0).needsReinforcement, isTrue);
+    });
+
+    test('acima e de lado', () {
+      expect(const PhonePosition(-20, 0).label, 'Acima do rosto');
+      expect(const PhonePosition(0, 22).label, 'De lado');
+      expect(const PhonePosition(20, -22).label, 'Abaixo do rosto e de lado');
+      expect(const PhonePosition(0, 35).needsReinforcement, isTrue);
+    });
+
+    test('celular bem abaixo liga o reforço mesmo com olhos bem separados', () {
+      final t = Thresholds()
+        ..restore(ear: 0.2, mar: 0.5, marNeutral: 0.1, headPitch: 30, headRoll: 0, headYaw: 0);
+      expect(t.phonePosition!.vertical, PhoneVertical.below);
+      expect(FatigueEngine(t).reinforced, isTrue);
+      final front = Thresholds()
+        ..restore(ear: 0.2, mar: 0.5, marNeutral: 0.1, headPitch: 2, headRoll: 0, headYaw: 0);
+      expect(FatigueEngine(front).reinforced, isFalse);
+    });
+
+    test('sem calibração a posição é desconhecida', () {
+      expect(Thresholds().phonePosition, isNull);
+    });
+  });
 }

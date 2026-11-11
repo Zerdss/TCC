@@ -249,9 +249,10 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.shield_outlined,
                 title: 'Sempre reforçar cabeça e boca',
                 subtitle: 'O reforço liga sozinho quando a calibração mostra os olhos pouco visíveis '
-                    '(ex.: celular muito abaixo do rosto): a inclinação da cabeça fica mais sensível e o '
-                    'olho fechado também é medido pela probabilidade do ML Kit. Ligue para usar sempre. '
-                    'Calibração atual: ${t.eyeSeparation == null ? 'sem medição' : t.lowEyeConfidence ? 'olhos pouco visíveis (reforço automático)' : 'olhos bem visíveis'}.',
+                    'ou o celular muito abaixo, acima ou de lado do rosto: a inclinação da cabeça fica mais '
+                    'sensível e o olho fechado também é medido pela probabilidade do ML Kit. Ligue para usar sempre. '
+                    'Calibração atual: ${t.eyeSeparation == null ? 'sem medição' : t.lowEyeConfidence ? 'olhos pouco visíveis (reforço automático)' : 'olhos bem visíveis'}'
+                    '${t.phonePosition == null ? '' : '; celular ${t.phonePosition!.label.toLowerCase()}${t.phonePosition!.needsReinforcement ? ' (reforço automático)' : ''}'}.',
                 value: s.forceReinforced,
                 onChanged: (v) {
                   s.forceReinforced = v;

@@ -67,6 +67,79 @@ const double cameraPitchWarnDeg = 25;
 const double cameraYawWarnDeg = 30;
 
 // ---------------------------------------------------------------------------
+// Posição do celular em relação ao rosto
+// ---------------------------------------------------------------------------
+
+/// A partir deste ângulo (graus) o celular conta como abaixo/acima do rosto.
+const double phoneTiltDeg = 12;
+
+/// A partir deste giro (graus) o celular conta como de lado.
+const double phoneSideDeg = 15;
+
+/// Posição em que o reforço liga sozinho, mesmo que a calibração dos olhos
+/// tenha dado boa separação (bem abaixo/acima ou bem de lado).
+const double phoneReinforcePitchDeg = cameraPitchWarnDeg;
+const double phoneReinforceYawDeg = cameraYawWarnDeg;
+
+enum PhoneVertical { below, level, above }
+
+/// Onde o celular está em relação ao rosto. Medido pelo ângulo do rosto na
+/// etapa "olhos abertos" da calibração, com o motorista olhando para a estrada:
+/// se o rosto aparece "olhando para cima" na câmera, o celular está abaixo.
+class PhonePosition {
+  const PhonePosition(this.pitch, this.yaw);
+
+  /// Ângulos do rosto em relação à câmera (graus, ML Kit). Pitch > 0 = celular abaixo.
+  final double pitch;
+  final double yaw;
+
+  static PhonePosition? fromAngles(double? pitch, double? yaw) =>
+      pitch == null ? null : PhonePosition(pitch, yaw ?? 0);
+
+  PhoneVertical get vertical => pitch >= phoneTiltDeg
+      ? PhoneVertical.below
+      : pitch <= -phoneTiltDeg
+          ? PhoneVertical.above
+          : PhoneVertical.level;
+
+  bool get side => yaw.abs() >= phoneSideDeg;
+
+  /// Muito abaixo/acima ou muito de lado: olhos pouco confiáveis → reforço.
+  bool get needsReinforcement =>
+      pitch.abs() >= phoneReinforcePitchDeg || yaw.abs() >= phoneReinforceYawDeg;
+
+  bool get isFront => vertical == PhoneVertical.level && !side;
+
+  /// Nome curto da posição ("De frente", "Abaixo do rosto", "Abaixo e de lado"...).
+  String get label {
+    final strong = pitch.abs() >= phoneReinforcePitchDeg;
+    final v = switch (vertical) {
+      PhoneVertical.below => strong ? 'Bem abaixo do rosto' : 'Abaixo do rosto',
+      PhoneVertical.above => strong ? 'Bem acima do rosto' : 'Acima do rosto',
+      PhoneVertical.level => null,
+    };
+    if (v == null) return side ? 'De lado' : 'De frente (reto)';
+    return side ? '$v e de lado' : v;
+  }
+
+  /// O que muda na detecção nesta posição.
+  String get detail {
+    if (isFront) return 'Melhor posição: olhos, boca e cabeça medidos normalmente.';
+    final parts = <String>[
+      if (vertical == PhoneVertical.below) 'visto de baixo, o olho parece mais achatado',
+      if (vertical == PhoneVertical.above) 'visto de cima, as pálpebras parecem mais baixas',
+      if (side) 'de lado, um olho aparece menor que o outro',
+    ];
+    final what = parts.join('; ');
+    return needsReinforcement
+        ? '${what[0].toUpperCase()}${what.substring(1)}. Reforço ligado: a cabeça fica mais '
+            'sensível e a boca segue igual. Os limites usam a sua calibração nesta posição.'
+        : '${what[0].toUpperCase()}${what.substring(1)}. Os limites usam a sua calibração nesta '
+            'posição, então a detecção funciona normalmente.';
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Movimentos normais × sonolência (evita alarme falso ao olhar para baixo, para
 // o lado ou ao se mexer). Valores iniciais: ajustar com testes reais.
 // ---------------------------------------------------------------------------
@@ -346,6 +419,9 @@ class Thresholds {
   /// quando ela separa melhor aberto de fechado. `null` = usar só o EAR.
   double? eyeProbThreshold;
 
+  /// Posição do celular medida na calibração (`null` = ainda não calibrado).
+  PhonePosition? get phonePosition => PhonePosition.fromAngles(headPitch, headYaw);
+
   double? _openEar;
   double? _closedEar;
   double? _yawnMar;
@@ -568,8 +644,12 @@ class FatigueEngine {
   ({double ear, double mar}) smooth(double rawEar, double rawMar) =>
       (ear: _earAvg.push(rawEar), mar: _marAvg.push(rawMar));
 
-  /// Modo de reforço: calibração indicou olhos pouco visíveis, ou o usuário pediu.
-  bool get reinforced => thresholds.lowEyeConfidence || settings.forceReinforced;
+  /// Modo de reforço: calibração indicou olhos pouco visíveis, o celular está
+  /// muito abaixo/acima/de lado, ou o usuário pediu.
+  bool get reinforced =>
+      thresholds.lowEyeConfidence ||
+      settings.forceReinforced ||
+      (thresholds.phonePosition?.needsReinforcement ?? false);
 
   /// Ângulo de queda da cabeça para alertar (menor no modo de reforço).
   double get effectiveHeadDropDeg =>

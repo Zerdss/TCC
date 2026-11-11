@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import '../vision/fatigue_engine.dart';
 import '../vision/vision_controller.dart';
 import '../widgets/camera_panel.dart';
 import '../widgets/common.dart';
@@ -304,6 +305,10 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                     ],
                   ),
                 ),
+                if (vision.thresholds.phonePosition case final pos?) ...[
+                  const SizedBox(height: 12),
+                  PhonePositionBanner(position: pos),
+                ],
                 if (vision.thresholds.eyeSeparation != null) ...[
                   const SizedBox(height: 12),
                   _EyeQualityBanner(low: vision.thresholds.lowEyeConfidence,
@@ -448,6 +453,41 @@ class _EyeQualityBanner extends StatelessWidget {
                   : 'A diferença entre olho aberto e fechado ficou clara. Detecção normal.',
               style: AppText.body.copyWith(fontSize: 12),
             ),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Mostra a posição do celular detectada na calibração e o que muda na detecção.
+class PhonePositionBanner extends StatelessWidget {
+  const PhonePositionBanner({super.key, required this.position});
+  final PhonePosition position;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = position.isFront
+        ? AppColors.green
+        : position.needsReinforcement
+            ? AppColors.yellow
+            : AppColors.blue;
+    return Container(
+      key: const Key('phone-position'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.smartphone, color: color),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Posição do celular: ${position.label}', style: AppText.cardTitle.copyWith(color: color)),
+            const SizedBox(height: 4),
+            Text(position.detail, style: AppText.body.copyWith(fontSize: 12)),
           ]),
         ),
       ]),
