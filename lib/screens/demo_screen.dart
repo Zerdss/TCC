@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../platform/background_bubble.dart';
 import '../platform/floating_window.dart';
 import '../theme.dart';
 import '../vision/fatigue_engine.dart';
@@ -45,6 +46,35 @@ class _DemoScreenState extends State<DemoScreen> {
   }
 
   Future<void> _useWithGps() async {
+    final bubble = BackgroundBubble.instance;
+    if (bubble.available) {
+      if (await bubble.canDraw()) {
+        // Liga a bolinha e manda o app para segundo plano (abra o GPS em seguida).
+        if (await bubble.start(toBack: true)) return;
+      } else if (mounted) {
+        final go = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppColors.panel,
+            title: const Text('Indicador flutuante'),
+            content: const Text(
+                'Para o detector continuar funcionando enquanto você usa o GPS, o app mostra uma bolinha '
+                'pequena por cima dos outros apps: um ponto verde, amarelo ou vermelho e o ícone da câmera '
+                '(riscado com X quando a detecção parar).\n\n'
+                'Na próxima tela, ative "Permitir exibição sobre outros apps" para o Fatigue Guard e volte.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false), child: const Text('Usar janela maior')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Permitir')),
+            ],
+          ),
+        );
+        if (go == true) {
+          await bubble.requestPermission();
+          return;
+        }
+      }
+    }
     final ok = await FloatingWindow.instance.enter();
     if (ok || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -91,7 +121,7 @@ class _DemoScreenState extends State<DemoScreen> {
         key: const Key('button-usar-gps'),
         onPressed: _useWithGps,
         icon: const Icon(Icons.picture_in_picture_alt_outlined, size: 18),
-        label: const Text('Usar junto com o GPS (janela flutuante)'),
+        label: const Text('Usar junto com o GPS'),
       ),
     );
     final buttons = Row(

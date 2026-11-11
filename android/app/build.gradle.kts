@@ -54,3 +54,13 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// Indicador flutuante: câmera (CameraX) e ML Kit usados direto no serviço nativo.
+// Mesmas versões usadas pelos plugins camera_android_camerax e google_mlkit_face_detection.
+dependencies {
+    implementation("androidx.camera:camera-core:1.6.2")
+    implementation("androidx.camera:camera-camera2:1.6.2")
+    implementation("androidx.camera:camera-lifecycle:1.6.2")
+    implementation("com.google.mlkit:face-detection:16.1.7")
+    implementation("androidx.annotation:annotation-experimental:1.4.1")
+}

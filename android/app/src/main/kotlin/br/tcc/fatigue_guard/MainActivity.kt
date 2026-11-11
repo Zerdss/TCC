@@ -9,6 +9,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.net.Uri
+import android.provider.Settings
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Rational
@@ -25,6 +27,8 @@ class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var autoEnter = false
     private var receiver: BroadcastReceiver? = null
+    private var bubbleChannel: MethodChannel? = null
+    private var autoBubble = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -44,6 +48,63 @@ class MainActivity : FlutterActivity() {
             }
         }
         registerAckReceiver()
+
+        // Indicador flutuante (bolinha) com a câmera num serviço em segundo plano.
+        bubbleChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BUBBLE_CHANNEL).also { ch ->
+            BubbleService.sink = { frame -> ch.invokeMethod("frame", frame) }
+            ch.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "canDraw" -> result.success(canDrawOverlays())
+                    "requestPermission" -> {
+                        try {
+                            startActivity(
+                                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
+                            )
+                            result.success(true)
+                        } catch (_: Exception) {
+                            result.success(false)
+                        }
+                    }
+                    "start" -> {
+                        val ok = startBubble()
+                        if (ok && call.argument<Boolean>("toBack") == true) moveTaskToBack(true)
+                        result.success(ok)
+                    }
+                    "stop" -> {
+                        BubbleService.instance?.shutdown()
+                        stopService(Intent(this, BubbleService::class.java))
+                        result.success(null)
+                    }
+                    "status" -> {
+                        BubbleService.instance?.setStatus(
+                            call.argument<Int>("status") ?: 0,
+                            call.argument<Boolean>("cameraOk") == true,
+                        )
+                        result.success(null)
+                    }
+                    "setAuto" -> {
+                        autoBubble = call.argument<Boolean>("enabled") == true
+                        result.success(null)
+                    }
+                    "isRunning" -> result.success(BubbleService.instance != null)
+                    else -> result.notImplemented()
+                }
+            }
+        }
+    }
+
+    private fun canDrawOverlays(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
+
+    private fun startBubble(): Boolean {
+        if (!canDrawOverlays()) return false
+        if (BubbleService.instance != null) return true
+        return try {
+            BubbleService.start(this)
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun pipSupported(): Boolean =
@@ -90,6 +151,11 @@ class MainActivity : FlutterActivity() {
     /** Android 8 a 11: entra na janela flutuante ao apertar "início" durante o monitoramento. */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        // Preferência: a bolinha (bem pequena). Sem a permissão, cai na janela flutuante.
+        if (autoBubble && canDrawOverlays()) {
+            if (startBubble()) bubbleChannel?.invokeMethod("started", null)
+            return
+        }
         if (autoEnter && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             enterPip()
         }
@@ -119,11 +185,13 @@ class MainActivity : FlutterActivity() {
     override fun onDestroy() {
         receiver?.let { unregisterReceiver(it) }
         receiver = null
+        BubbleService.sink = null
         super.onDestroy()
     }
 
     companion object {
         private const val CHANNEL = "fatigue_guard/pip"
+        private const val BUBBLE_CHANNEL = "fatigue_guard/bubble"
         private const val ACTION_ACK = "br.tcc.fatigue_guard.ACK_ALERT"
     }
 }

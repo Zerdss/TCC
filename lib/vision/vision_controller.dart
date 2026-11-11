@@ -34,6 +34,60 @@ class FaceOverlayData {
   final List<List<Pt>> rings;
 }
 
+/// Dados de um rosto detectado (do plugin do ML Kit ou do serviço nativo).
+class FaceInput {
+  const FaceInput({
+    required this.box,
+    required this.leftEye,
+    required this.rightEye,
+    required this.upperLipTop,
+    required this.upperLipBottom,
+    required this.lowerLipTop,
+    required this.lowerLipBottom,
+    this.allPoints = const [],
+    this.pitch,
+    this.roll,
+    this.yaw,
+    this.leftEyeOpen,
+    this.rightEyeOpen,
+    this.smile,
+  });
+
+  final Rect box;
+  final List<Pt> leftEye, rightEye, upperLipTop, upperLipBottom, lowerLipTop, lowerLipBottom, allPoints;
+  final double? pitch, roll, yaw, leftEyeOpen, rightEyeOpen, smile;
+
+  static List<Pt> _pts(Object? v) {
+    if (v is! List) return const [];
+    final d = [for (final x in v) (x as num).toDouble()];
+    return [for (var i = 0; i + 1 < d.length; i += 2) Pt(d[i], d[i + 1])];
+  }
+
+  static double? _d(Object? v) => v is num ? v.toDouble() : null;
+
+  /// Quadro enviado pelo serviço nativo (indicador flutuante). `null` = sem rosto.
+  static FaceInput? fromMap(Map<Object?, Object?> m) {
+    final box = m['box'];
+    if (box is! List || box.length < 4) return null;
+    final b = [for (final x in box) (x as num).toDouble()];
+    return FaceInput(
+      box: Rect.fromLTRB(b[0], b[1], b[2], b[3]),
+      leftEye: _pts(m['le']),
+      rightEye: _pts(m['re']),
+      upperLipTop: _pts(m['ult']),
+      upperLipBottom: _pts(m['ulb']),
+      lowerLipTop: _pts(m['llt']),
+      lowerLipBottom: _pts(m['llb']),
+      pitch: _d(m['ex']),
+      roll: _d(m['ez']),
+      yaw: _d(m['ey']),
+      leftEyeOpen: _d(m['lp']),
+      rightEyeOpen: _d(m['rp']),
+      smile: _d(m['sp']),
+    );
+  }
+}
+
 class FramingGuide {
   const FramingGuide(this.text, this.good);
   final String text;
@@ -277,6 +331,63 @@ class VisionController extends ChangeNotifier {
   }
 
   bool get isMonitoring => calibrationStep == null && state == EngineState.running;
+
+  // ------------------------------------------------- indicador em segundo plano
+  /// Os quadros vêm do serviço nativo (app em segundo plano, indicador flutuante).
+  bool backgroundFeed = false;
+  int _lastInputAt = 0, _lastFaceAt = 0;
+
+  /// O detector está vendo o rosto agora (último quadro com rosto há < 1,5 s).
+  bool get faceTracking {
+    final now = _clock.elapsedMilliseconds + 1;
+    return state == EngineState.running && now - _lastFaceAt < 1500 && now - _lastInputAt < 1500;
+  }
+
+  /// Passa a receber os quadros do serviço nativo: libera a câmera do app sem
+  /// encerrar a sessão, e o monitoramento continua igual.
+  Future<void> startBackgroundFeed() async {
+    if (backgroundFeed) return;
+    backgroundFeed = true;
+    _watchdog?.cancel();
+    _watchdog = null;
+    final controller = camera;
+    camera = null;
+    if (controller != null) {
+      try {
+        if (controller.value.isStreamingImages) await controller.stopImageStream();
+      } catch (_) {}
+      await controller.dispose();
+    }
+    state = EngineState.running;
+    _notify();
+  }
+
+  /// Volta para a câmera do app (o app voltou para a tela).
+  Future<void> stopBackgroundFeed() async {
+    if (!backgroundFeed) return;
+    backgroundFeed = false;
+    state = EngineState.idle;
+    overlay = null;
+    _notify();
+    if (_cameraUsers > 0) await start();
+  }
+
+  /// Quadro do serviço nativo: [m] tem a largura/altura da imagem e, se houver
+  /// rosto, os contornos e ângulos (ver BubbleService.kt).
+  void handleBackgroundFrame(Map<Object?, Object?> m) {
+    if (!backgroundFeed || _disposed) return;
+    final w = (m['w'] as num?)?.toDouble() ?? 0, h = (m['h'] as num?)?.toDouble() ?? 0;
+    if (w <= 0 || h <= 0) return;
+    final now = _clock.elapsedMilliseconds + 1;
+    _handleInput(FaceInput.fromMap(m), Size(w, h), now);
+    _fpsFrames++;
+    if (now - _fpsStart >= 1000) {
+      fps = _fpsFrames * 1000 / (now - _fpsStart);
+      _fpsFrames = 0;
+      _fpsStart = now;
+    }
+    _notify();
+  }
 
   Future<void> stop() async {
     await endSession();
@@ -628,6 +739,46 @@ class VisionController extends ChangeNotifier {
     final imageSize = rotated ? Size(meta.size.height, meta.size.width) : meta.size;
 
     if (faces.isEmpty) {
+      _handleInput(null, imageSize, now);
+      return;
+    }
+    // Rosto mais próximo (maior caixa).
+    final face = faces.reduce((a, b) =>
+        a.boundingBox.width * a.boundingBox.height >= b.boundingBox.width * b.boundingBox.height ? a : b);
+
+    List<Pt> contour(FaceContourType type) =>
+        face.contours[type]?.points.map((p) => Pt(p.x.toDouble(), p.y.toDouble())).toList() ?? const [];
+
+    _handleInput(
+      FaceInput(
+        box: face.boundingBox,
+        leftEye: contour(FaceContourType.leftEye),
+        rightEye: contour(FaceContourType.rightEye),
+        upperLipTop: contour(FaceContourType.upperLipTop),
+        upperLipBottom: contour(FaceContourType.upperLipBottom),
+        lowerLipTop: contour(FaceContourType.lowerLipTop),
+        lowerLipBottom: contour(FaceContourType.lowerLipBottom),
+        allPoints: [
+          for (final c in face.contours.values)
+            if (c != null) ...c.points.map((p) => Pt(p.x.toDouble(), p.y.toDouble())),
+        ],
+        pitch: face.headEulerAngleX,
+        roll: face.headEulerAngleZ,
+        yaw: face.headEulerAngleY,
+        leftEyeOpen: face.leftEyeOpenProbability,
+        rightEyeOpen: face.rightEyeOpenProbability,
+        smile: face.smilingProbability,
+      ),
+      imageSize,
+      now,
+    );
+  }
+
+  /// Processa um rosto (ou a falta dele), venha da câmera do app ou do serviço
+  /// em segundo plano (indicador flutuante).
+  void _handleInput(FaceInput? face, Size imageSize, int now) {
+    _lastInputAt = now;
+    if (face == null) {
       overlay = null;
       guide = const FramingGuide('Rosto não detectado — enquadre-se na câmera', false);
       if (calibrationStep == null) {
@@ -638,31 +789,21 @@ class VisionController extends ChangeNotifier {
       }
       return;
     }
-    // Rosto mais próximo (maior caixa).
-    final face = faces.reduce((a, b) =>
-        a.boundingBox.width * a.boundingBox.height >= b.boundingBox.width * b.boundingBox.height ? a : b);
-
-    List<Pt> contour(FaceContourType type) =>
-        face.contours[type]?.points.map((p) => Pt(p.x.toDouble(), p.y.toDouble())).toList() ?? const [];
-
-    final leftEye = contour(FaceContourType.leftEye);
-    final rightEye = contour(FaceContourType.rightEye);
-    final upperLipTop = contour(FaceContourType.upperLipTop);
-    final upperLipBottom = contour(FaceContourType.upperLipBottom);
-    final lowerLipTop = contour(FaceContourType.lowerLipTop);
-    final lowerLipBottom = contour(FaceContourType.lowerLipBottom);
-
-    final all = <Pt>[
-      for (final c in face.contours.values)
-        if (c != null) ...c.points.map((p) => Pt(p.x.toDouble(), p.y.toDouble())),
-    ];
+    _lastFaceAt = now;
+    final leftEye = face.leftEye;
+    final rightEye = face.rightEye;
+    final upperLipTop = face.upperLipTop;
+    final upperLipBottom = face.upperLipBottom;
+    final lowerLipTop = face.lowerLipTop;
+    final lowerLipBottom = face.lowerLipBottom;
+    final all = face.allPoints;
     overlay = FaceOverlayData(
       imageSize: imageSize,
-      box: face.boundingBox,
+      box: face.box,
       allPoints: all,
       rings: [leftEye, rightEye, [...upperLipTop, ...lowerLipBottom]],
     );
-    guide = _framing(face.boundingBox, imageSize, face.headEulerAngleX, face.headEulerAngleY);
+    guide = _framing(face.box, imageSize, face.pitch, face.yaw);
 
     final leftEar = eyeAspectRatio(leftEye);
     final rightEar = eyeAspectRatio(rightEye);
@@ -675,11 +816,11 @@ class VisionController extends ChangeNotifier {
 
     final smooth = engine.smooth((leftEar + rightEar) / 2, rawMar);
 
-    final pitch = face.headEulerAngleX;
-    final roll = face.headEulerAngleZ;
-    final yaw = face.headEulerAngleY;
+    final pitch = face.pitch;
+    final roll = face.roll;
+    final yaw = face.yaw;
     // Probabilidade de olho aberto (média dos dois olhos), do classificador do ML Kit.
-    final probs = [face.leftEyeOpenProbability, face.rightEyeOpenProbability].whereType<double>().toList();
+    final probs = [face.leftEyeOpen, face.rightEyeOpen].whereType<double>().toList();
     final eyeProb = probs.isEmpty ? null : probs.reduce((a, b) => a + b) / probs.length;
 
     final step = calibrationStep;
@@ -699,8 +840,8 @@ class VisionController extends ChangeNotifier {
           roll: roll,
           yaw: yaw,
           eyeProb: eyeProb,
-          smile: face.smilingProbability,
-          framed: _wellFramed(face.boundingBox, imageSize),
+          smile: face.smile,
+          framed: _wellFramed(face.box, imageSize),
         ));
         calibrationProgress = _sampler.progress;
         if (_sampler.done) {
@@ -715,7 +856,7 @@ class VisionController extends ChangeNotifier {
 
     _applyMonitoring(
       engine.process(smooth.ear, smooth.mar, now,
-          pitch: pitch, roll: roll, yaw: yaw, smile: face.smilingProbability, eyeProb: eyeProb),
+          pitch: pitch, roll: roll, yaw: yaw, smile: face.smile, eyeProb: eyeProb),
       now,
     );
   }

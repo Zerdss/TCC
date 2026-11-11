@@ -279,10 +279,12 @@ class SettingsScreen extends StatelessWidget {
               const Divider(height: 1),
               _SwitchRow(
                 icon: Icons.picture_in_picture_alt_outlined,
-                title: 'Janela flutuante ao sair do app',
+                title: 'Continuar detectando fora do app',
                 subtitle: FloatingWindow.instance.supported
-                    ? 'Durante o monitoramento, ao apertar o botão "início" o detector continua numa janela '
-                        'pequena por cima de outro app (ex.: GPS), com o status e o alarme funcionando.'
+                    ? 'Durante o monitoramento, ao apertar o botão "início" o detector continua funcionando por '
+                        'cima de outro app (ex.: GPS): uma bolinha com o ponto verde/amarelo/vermelho e o ícone '
+                        'da câmera (riscado com X se a detecção parar). Precisa da permissão "Exibir sobre '
+                        'outros apps"; sem ela, usa uma janela flutuante maior. O alarme toca normalmente.'
                     : 'Este aparelho não oferece janela flutuante (no iPhone o sistema não permite a câmera '
                         'em segundo plano). Use a tela dividida, se o aparelho tiver.',
                 value: s.floatingWindow,

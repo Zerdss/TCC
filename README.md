@@ -48,14 +48,16 @@ Fluxo:
   tela cheia piscando, bipe e vibração; se continuar por 4 s, sirene rápida e vibração longa.
   Botão **"Estou acordado"** silencia por 10 s. O som toca no canal de alarme (Android) e
   mesmo no modo silencioso (iPhone). Tela sempre ligada durante o monitoramento.
-- **Junto com o GPS — janela flutuante** (Android 8+): durante o monitoramento, ao apertar
-  "início" (ou no botão "Usar junto com o GPS"), o app vira uma janela pequena por cima do outro
-  app (Maps, Waze...) e continua detectando. A janela é quadrada, no menor tamanho que o Android
-  permite (~108 dp), com ícone e uma palavra (NORMAL / ATENÇÃO / ALERTA) em cores; toca o
-  alarme e tem o botão "Estou acordado" nos controles da janela. A câmera continua ligada porque
-  a janela segue visível. Também funciona com a tela dividida do Android. Pode ser desligado
-  em Configurações. No iPhone não é possível: o iOS não deixa a câmera funcionar com outro app
-  em primeiro plano.
+- **Junto com o GPS — indicador flutuante** (Android): durante o monitoramento, ao apertar
+  "início" (ou no botão "Usar junto com o GPS"), aparece uma **bolinha** arrastável por cima do
+  outro app (Maps, Waze...): um ponto **verde / amarelo / vermelho** (pisca no alerta) e o ícone de
+  **câmera** — riscado com **X** quando a detecção parou (sem câmera ou sem rosto). A câmera e o
+  ML Kit passam para um serviço nativo em primeiro plano (`BubbleService.kt`, com notificação), que
+  manda os pontos do rosto para o app; a lógica de sonolência é a mesma, e o alarme toca e vibra
+  normalmente. Tocar na bolinha volta ao app. Precisa da permissão "Exibir sobre outros apps"; sem
+  ela, o app usa a janela flutuante do Android (picture-in-picture, quadrada, ~108 dp). Também
+  funciona com a tela dividida. No iPhone não é possível: o iOS não deixa a câmera funcionar com
+  outro app em primeiro plano.
 - **Modo deitado** (opcional): celular na horizontal no suporte do carro, com câmera e métricas
   lado a lado. Se o aparelho entregar a imagem num ângulo inesperado, o app testa as rotações
   sozinho até reencontrar o rosto.
