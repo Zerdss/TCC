@@ -47,7 +47,8 @@ class _FloatingViewState extends State<FloatingView> with SingleTickerProviderSt
             ? 'Abra o app para monitorar'
             : status == FatigueStatus.normal
                 ? (v.overlay == null ? 'Rosto não visível' : 'Monitorando')
-                : v.notice;
+                // Só a parte principal do aviso: a janela é pequena.
+                : v.notice.split(' • ').first;
         return ColoredBox(
           key: const Key('floating-view'),
           color: bg,
@@ -73,7 +74,7 @@ class _FloatingViewState extends State<FloatingView> with SingleTickerProviderSt
                         style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(height: 2),
-                  Text('Fatigue Guard • EAR ${v.metrics.ear.toStringAsFixed(2)}',
+                  Text('Fatigue Guard • EAR ${v.metrics.ear.toStringAsFixed(2).replaceAll('.', ',')}',
                       style: const TextStyle(color: Colors.white70, fontSize: 11)),
                 ]),
               ),
