@@ -61,7 +61,7 @@ class MainActivity : FlutterActivity() {
             "Estou acordado", "Silencia o alerta por 10 s", ack,
         )
         val b = PictureInPictureParams.Builder()
-            .setAspectRatio(Rational(3, 2))
+            .setAspectRatio(Rational(1, 1)) // quadrada = menor janela que o Android permite
             .setActions(listOf(action))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             b.setAutoEnterEnabled(autoEnter)

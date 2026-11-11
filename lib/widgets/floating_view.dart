@@ -52,34 +52,34 @@ class _FloatingViewState extends State<FloatingView> with SingleTickerProviderSt
         return ColoredBox(
           key: const Key('floating-view'),
           color: bg,
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: FittedBox(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(icon, color: Colors.white, size: 34),
-                    const SizedBox(width: 6),
+          child: LayoutBuilder(builder: (context, box) {
+            // Janela no tamanho mínimo (~108 dp): só ícone e uma palavra, para ler de relance.
+            final compact = box.biggest.shortestSide < 160;
+            return Padding(
+              padding: EdgeInsets.all(compact ? 6 : 10),
+              child: Center(
+                child: FittedBox(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(icon, color: Colors.white, size: 56),
                     Text(title,
                         style: const TextStyle(
-                            color: Colors.white, fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                            color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                    if (!compact) ...[
+                      const SizedBox(height: 2),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 200),
+                        child: Text(detail,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                      ),
+                    ],
                   ]),
-                  const SizedBox(height: 2),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 260),
-                    child: Text(detail,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
-                  ),
-                  const SizedBox(height: 2),
-                  Text('Fatigue Guard • EAR ${v.metrics.ear.toStringAsFixed(2).replaceAll('.', ',')}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                ]),
+                ),
               ),
-            ),
-          ),
+            );
+          }),
         );
       },
     );

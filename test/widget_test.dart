@@ -54,11 +54,17 @@ void main() {
 
   testWidgets('janela flutuante mostra o status de forma compacta', (tester) async {
     final vision = VisionController();
-    await tester.binding.setSurfaceSize(const Size(240, 160)); // tamanho típico da janela
+    await tester.binding.setSurfaceSize(const Size(200, 200)); // janela ampliada pelo usuário
     await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: FloatingView(vision: vision)));
     // Câmera desligada nos testes: não está monitorando.
     expect(find.text('PAUSADO'), findsOneWidget);
     expect(find.text('Abra o app para monitorar'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    // Tamanho mínimo (~108 dp): só ícone e palavra.
+    await tester.binding.setSurfaceSize(const Size(108, 108));
+    await tester.pump();
+    expect(find.text('PAUSADO'), findsOneWidget);
+    expect(find.text('Abra o app para monitorar'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.binding.setSurfaceSize(null);
     await tester.pumpWidget(const SizedBox());

@@ -50,7 +50,8 @@ Fluxo:
   mesmo no modo silencioso (iPhone). Tela sempre ligada durante o monitoramento.
 - **Junto com o GPS — janela flutuante** (Android 8+): durante o monitoramento, ao apertar
   "início" (ou no botão "Usar junto com o GPS"), o app vira uma janela pequena por cima do outro
-  app (Maps, Waze...) e continua detectando: mostra NORMAL / ATENÇÃO / ALERTA em cores, toca o
+  app (Maps, Waze...) e continua detectando. A janela é quadrada, no menor tamanho que o Android
+  permite (~108 dp), com ícone e uma palavra (NORMAL / ATENÇÃO / ALERTA) em cores; toca o
   alarme e tem o botão "Estou acordado" nos controles da janela. A câmera continua ligada porque
   a janela segue visível. Também funciona com a tela dividida do Android. Pode ser desligado
   em Configurações. No iPhone não é possível: o iOS não deixa a câmera funcionar com outro app
