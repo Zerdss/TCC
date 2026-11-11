@@ -15,8 +15,9 @@ Fluxo:
   enquadrado, a cabeça parada (< 35°/s) e na mesma posição da 1ª etapa (±10°); piscadas são
   descartadas. 80 quadros válidos por etapa, sem picos (filtro por desvio robusto). Cada etapa é
   analisada: variação dos olhos abertos ≤ 12%, poucas piscadas, olho fechado ≥ 12% menor que o
-  aberto (ou probabilidade do ML Kit 0,4 menor), bocejo com MAR ≥ 0,63 e ≥ 2× a boca fechada,
-  sorriso identificado. Etapa reprovada é repetida (3 tentativas; olho fechado parecido com o
+  aberto (ou probabilidade do ML Kit 0,4 menor), bocejo com pico de MAR ≥ 0,35 e 0,15 acima da boca
+  fechada (no bocejo e no sorriso a cabeça pode mexer e bastam ~2–3 s de boca aberta), sorriso
+  identificado. Bocejo e sorriso podem ser pulados (usa o limite padrão). Etapa reprovada é repetida (3 tentativas; olho fechado parecido com o
   aberto permite "continuar com reforço"). No fim aparece a **análise do rosto** (posição do
   celular, formato dos olhos × padrão, diferença entre os olhos, separação aberto × fechado,
   bocejo, sorriso e confiança) e a calibração só é salva quando o usuário confirma; sair no meio

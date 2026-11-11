@@ -457,6 +457,17 @@ class VisionController extends ChangeNotifier {
     _notify();
   }
 
+  /// Pula a etapa atual (bocejo ou sorriso): o app usa o valor padrão dela.
+  void skipCalibrationStep() {
+    final step = calibrationStep, d = calibrationDraft;
+    if (step == null || step < 2 || d == null) return;
+    calibrationSteps[step] = StepAnalysis(step: step, ear: d.ear, mar: d.mar, skipped: true);
+    calibrationFailure = null;
+    calibrationPaused = true;
+    calibrationProgress = 100;
+    _notify();
+  }
+
   /// Confirma a calibração: os limiares do rascunho passam a valer e são salvos.
   Future<void> commitCalibration() async {
     final d = calibrationDraft;

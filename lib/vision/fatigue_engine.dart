@@ -13,6 +13,9 @@ const double marNeutralDefault = 0.35;
 
 const double earMargin = 0.28, earMin = 0.10, earMax = 0.28;
 const double marMin = 0.45, marMax = 0.90;
+
+/// Menor limiar de bocejo aceito pela calibração (bocejo pessoal mais contido).
+const double marCalibMin = 0.32;
 const double marNeutralMin = 0.28, marNeutralMax = 0.50;
 
 const int warnClosedMs = 700;
@@ -535,7 +538,10 @@ class Thresholds {
         }
       case 2:
         _yawnMar = medianMar;
-        mar = clampD(medianMar * 0.72, marMin, marMax);
+        // 72% do bocejo, mas sempre acima da boca fechada medida na 1ª etapa.
+        final closedMouth = _openMar ?? 0.08;
+        mar = clampD(math.max(medianMar * 0.72, closedMouth + 0.6 * (medianMar - closedMouth)),
+            marCalibMin, marMax);
       case 3:
         final closed = _closedEar;
         final floor = closed != null ? closed + 0.04 : earMin;
@@ -543,7 +549,7 @@ class Thresholds {
         ear = clampD(candidate, floor, earMax);
         final yawn = _yawnMar;
         if (yawn != null && yawn > medianMar) {
-          mar = clampD(medianMar + 0.6 * (yawn - medianMar), marMin, marMax);
+          mar = clampD(medianMar + 0.6 * (yawn - medianMar), marCalibMin, marMax);
         }
         marNeutral = clampD(medianMar * 0.95, marNeutralMin, marNeutralMax);
     }

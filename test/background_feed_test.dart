@@ -61,4 +61,17 @@ void main() {
     expect(v.overlay, isNull);
     v.dispose();
   });
+
+  test('pular o bocejo conclui a etapa e a análise avisa que usa o limite padrão', () {
+    final v = VisionController();
+    v.startCalibration(full: true);
+    v.beginCalibration(2);
+    v.skipCalibrationStep();
+    expect(v.calibrationProgress, 100);
+    expect(v.calibrationSteps[2]!.skipped, isTrue);
+    final checks = v.faceProfile!.checks.map((c) => c.title);
+    expect(checks, contains('Bocejo não calibrado'));
+    expect(v.faceProfile!.confidence, 'Média');
+    v.dispose();
+  });
 }

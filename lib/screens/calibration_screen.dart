@@ -32,7 +32,7 @@ const _steps = [
       'Feche os olhos e espere o "plim"'),
   _Step('BOCEJO DE TESTE', Icons.record_voice_over_outlined,
       'Abra a boca como em um bocejo lento e sustentado para registrar seu padrão de MAR.',
-      'Segure a boca bem aberta até ouvir o "plim".',
+      'Abra bem a boca por 2 ou 3 segundos, até o "plim". Pode inclinar a cabeça como num bocejo de verdade.',
       'Abra a boca como num bocejo'),
   _Step('SORRISO / RISADA', Icons.sentiment_very_satisfied_outlined,
       'Sorria e ria naturalmente por alguns segundos. Isso ensina o sistema a não confundir '
@@ -184,6 +184,21 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     _advanceTimer?.cancel();
     _retryTimer?.cancel();
     setState(() => _summary = true);
+  }
+
+  /// Pula o bocejo (usa o limite padrão) ou o sorriso (etapa opcional).
+  void _skipStep() {
+    _retryTimer?.cancel();
+    _timer?.cancel(); // para a contagem 3‑2‑1, senão ela reiniciaria a etapa
+    setState(() => _countdown = null);
+    if (step == 3 && !_single) {
+      vision.skipCalibrationStep();
+      _showSummary();
+    } else if (step == 2) {
+      vision.skipCalibrationStep(); // conclui a etapa; o fluxo segue normalmente
+    } else if (_single) {
+      Navigator.of(context).pop();
+    }
   }
 
   void _restartAll() {
@@ -377,7 +392,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                     retrying: _attempts < calibMaxAttempts,
                     onRetry: () => _startStep(step),
                     onForce: failure.issue!.canForce ? vision.forceAcceptStep : null,
-                    onSkip: step == 3 && !_single ? _showSummary : null,
+                    onSkip: failure.issue!.canSkip ? _skipStep : null,
                   ),
                 ],
                 if (!_single && draft?.phonePosition != null) ...[
@@ -413,12 +428,12 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                     style: TextStyle(color: AppColors.muted, fontSize: 11),
                   ),
                 ),
-                if (step == 3 && !_single)
+                if (step >= 2 && !_single && !done)
                   TextButton(
                     key: const Key('button-skip-step'),
-                    onPressed: _showSummary,
-                    child: const Text('Pular etapa opcional',
-                        style: TextStyle(
+                    onPressed: _skipStep,
+                    child: Text(step == 3 ? 'Pular etapa opcional' : 'Pular bocejo (usar limite padrão)',
+                        style: const TextStyle(
                             color: AppColors.muted,
                             fontWeight: FontWeight.w700,
                             decoration: TextDecoration.underline)),
@@ -610,10 +625,12 @@ class _FailureBanner extends StatelessWidget {
         const SizedBox(height: 6),
         Text(issue.hint, style: AppText.body.copyWith(fontSize: 12)),
         const SizedBox(height: 6),
-        if (retrying)
+        if (retrying) ...[
           const Text('Repetindo a etapa em instantes...',
-              style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600))
-        else
+              style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+          if (onSkip != null)
+            TextButton(onPressed: onSkip, child: const Text('Pular esta etapa (usar padrão)')),
+        ] else
           Wrap(spacing: 8, runSpacing: 4, children: [
             FilledButton.icon(
               key: const Key('button-retry-step'),
@@ -628,7 +645,7 @@ class _FailureBanner extends StatelessWidget {
                 child: const Text('Continuar com reforço'),
               ),
             if (onSkip != null)
-              TextButton(onPressed: onSkip, child: const Text('Pular etapa opcional')),
+              TextButton(onPressed: onSkip, child: const Text('Pular esta etapa (usar padrão)')),
           ]),
       ]),
     );

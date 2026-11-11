@@ -30,15 +30,31 @@ const int calibStepTimeoutMs = 20000;
 const double calibMaxOpenEarCv = 0.12;
 const double calibMaxClosedEarCv = 0.25;
 const double calibMaxClosedEarSpread = 0.02; // aceito também se o desvio absoluto for pequeno
-const double calibMaxMarCv = 0.18;
 
 /// Olho fechado tem de ficar diferente do aberto: 12% no EAR ou 0,4 na probabilidade.
 const double calibMinEarSeparation = 0.12;
 const double calibMinProbSeparation = 0.4;
 
-/// Bocejo: abertura mínima para o limiar (72% do bocejo) não ficar abaixo do mínimo.
-const double calibMinYawnMar = marMin / 0.72;
-const double calibYawnOverNeutral = 2.0;
+/// Bocejo: o quadro só conta com a boca claramente aberta (MAR ≥ 0,25 e pelo
+/// menos 0,12 acima da boca fechada medida na 1ª etapa).
+const double calibYawnFrameMin = 0.25;
+const double calibYawnFrameOverNeutral = 0.12;
+
+/// Bocejo aprovado: abertura "de pico" ≥ 0,35 e pelo menos 0,15 acima da boca fechada.
+const double calibMinYawnMar = 0.35;
+const double calibYawnOverNeutral = 0.15;
+
+/// No bocejo a cabeça costuma ir para trás e o rosto se mexe: limites folgados
+/// (como no sorriso) e menos quadros, porque um bocejo dura poucos segundos.
+const double calibYawnMaxSpeedDegPerS = 90;
+const double calibYawnPoseToleranceDeg = 22;
+
+/// Quadros válidos por etapa: bocejo e sorriso duram pouco.
+int samplesForStep(int step) => switch (step) {
+      2 => 36,
+      3 => 45,
+      _ => samplesPerStep,
+    };
 
 /// Abaixo de 75% do EAR aberto = piscada (descartada na etapa "olhos abertos").
 const double calibBlinkFactor = 0.75;
@@ -113,12 +129,15 @@ class CalibrationFrame {
 
 /// Motivo de reprovação de uma etapa.
 class CalibrationIssue {
-  const CalibrationIssue(this.title, this.hint, {this.canForce = false});
+  const CalibrationIssue(this.title, this.hint, {this.canForce = false, this.canSkip = false});
   final String title;
   final String hint;
 
   /// Permite continuar mesmo assim (com o modo de reforço) após as tentativas.
   final bool canForce;
+
+  /// Permite pular a etapa e usar o valor padrão (bocejo e sorriso).
+  final bool canSkip;
 }
 
 /// Resultado da análise de uma etapa.
@@ -140,6 +159,7 @@ class StepAnalysis {
     this.rejected = 0,
     this.blinkShare = 0,
     this.forced = false,
+    this.skipped = false,
   });
 
   final int step;
@@ -155,6 +175,11 @@ class StepAnalysis {
 
   /// Aceita manualmente apesar da reprovação ("continuar com reforço").
   final bool forced;
+
+  /// Etapa pulada: o app usa o valor padrão.
+  final bool skipped;
+
+  StepAnalysis asSkipped() => StepAnalysis(step: step, ear: ear, mar: mar, skipped: true);
 
   StepAnalysis asForced() => StepAnalysis(
         step: step,
@@ -232,8 +257,9 @@ class CalibrationSampler {
 
   int get accepted => _ears.length;
   int get rejected => issues.values.fold(0, (a, b) => a + b);
-  bool get done => _ears.length >= samplesPerStep;
-  int get progress => ((_ears.length / samplesPerStep) * 100).round().clamp(0, 100);
+  int get target => samplesForStep(step);
+  bool get done => _ears.length >= target;
+  int get progress => ((_ears.length / target) * 100).round().clamp(0, 100);
   double get medianEar => median(_ears);
   double get medianMar => median(_mars);
   double? get medianPitch => _medianOrNull(_pitches);
@@ -244,7 +270,8 @@ class CalibrationSampler {
   /// A etapa passou do tempo máximo sem juntar amostras válidas suficientes.
   bool timedOut(int now) => !done && _startTime != null && now - _startTime! > calibStepTimeoutMs;
 
-  bool get _smileStep => step == 3;
+  /// Bocejo e sorriso: o rosto se mexe naturalmente.
+  bool get _expressive => step >= 2;
 
   /// Avalia um quadro. Retorna [FrameIssue.none] se ele entrou na calibração.
   FrameIssue add(CalibrationFrame f) {
@@ -288,11 +315,20 @@ class CalibrationSampler {
       if (dt >= calibSpeedWindowMs ~/ 2) {
         final delta = math.max((p - old.$2).abs(), math.max((r - old.$3).abs(), (y - old.$4).abs()));
         final speed = delta * 1000 / dt;
-        if (speed > (_smileStep ? calibSmileMaxSpeedDegPerS : calibMaxSpeedDegPerS)) return FrameIssue.moving;
+        final limit = step == 2
+            ? calibYawnMaxSpeedDegPerS
+            : step == 3
+                ? calibSmileMaxSpeedDegPerS
+                : calibMaxSpeedDegPerS;
+        if (speed > limit) return FrameIssue.moving;
       }
 
       // Mesma posição da cabeça (na 1ª etapa, a mediana do que já foi aceito).
-      final tol = _smileStep ? calibSmilePoseToleranceDeg : calibPoseToleranceDeg;
+      final tol = step == 2
+          ? calibYawnPoseToleranceDeg
+          : _expressive
+              ? calibSmilePoseToleranceDeg
+              : calibPoseToleranceDeg;
       final rp = ref.pitch ?? (_pitches.length >= 10 ? median(_pitches) : null);
       final rr = ref.roll ?? (_rolls.length >= 10 ? median(_rolls) : null);
       final ry = ref.yaw ?? (_yaws.length >= 10 ? median(_yaws) : null);
@@ -317,7 +353,8 @@ class CalibrationSampler {
           return FrameIssue.eyesStillOpen;
         }
       case 2:
-        if (f.mar < 0.9 * calibMinYawnMar) return FrameIssue.mouthNotOpen;
+        final neutral = ref.openMar ?? 0.08;
+        if (f.mar < math.max(calibYawnFrameMin, neutral + calibYawnFrameOverNeutral)) return FrameIssue.mouthNotOpen;
     }
     return FrameIssue.none;
   }
@@ -331,7 +368,7 @@ class CalibrationSampler {
   StepAnalysis analyze() {
     if (!done) {
       final main = _mainIssue;
-      final canForce = step == 1 && main == FrameIssue.eyesStillOpen && _poseOkEars.length >= samplesPerStep;
+      final canForce = step == 1 && main == FrameIssue.eyesStillOpen && _poseOkEars.length >= target;
       return StepAnalysis(
         step: step,
         ear: _poseOkEars.isEmpty ? 0 : median(_poseOkEars),
@@ -349,6 +386,7 @@ class CalibrationSampler {
                   'Feche bem os olhos, ou suba o celular para mais perto da altura do rosto.'
               : '${frameIssueText(main)}.',
           canForce: canForce,
+          canSkip: step >= 2,
         ),
       );
     }
@@ -412,26 +450,36 @@ class CalibrationSampler {
         }
         return result(null, earVar);
       case 2:
-        final neutral = ref.openMar;
-        if (mar < calibMinYawnMar || (neutral != null && mar < calibYawnOverNeutral * neutral)) {
-          return result(
-              const CalibrationIssue('Boca pouco aberta', 'Abra a boca como num bocejo grande e segure.'),
-              marVar);
-        }
-        if (marVar > calibMaxMarCv) {
-          return result(
-              const CalibrationIssue('Boca não ficou parada aberta',
-                  'Segure a boca bem aberta, sem fechar, até o "plim".'),
-              marVar);
-        }
-        return result(null, marVar);
+        // O bocejo abre e fecha: usa a parte mais aberta (metade de cima dos
+        // quadros), sem exigir a boca parada.
+        final sorted = [..._mars]..sort();
+        final peak = median(sorted.sublist(sorted.length ~/ 2));
+        final neutral = ref.openMar ?? 0.08;
+        final yawn = StepAnalysis(
+          step: step,
+          ear: ear,
+          mar: peak,
+          eyeProb: prob,
+          pitch: medianPitch,
+          roll: medianRoll,
+          yaw: medianYaw,
+          variation: marVar,
+          accepted: accepted,
+          rejected: rejected,
+          issue: peak < calibMinYawnMar || peak < neutral + calibYawnOverNeutral
+              ? const CalibrationIssue('Boca pouco aberta',
+                  'Abra a boca como num bocejo bem grande, por 2 ou 3 segundos.', canSkip: true)
+              : null,
+        );
+        return yawn;
       default:
         final smile = _medianOrNull(_smiles);
         final neutral = ref.openMar;
         final mouthMoved = neutral != null && mar >= 1.3 * neutral;
         if (smile != null && smile < 0.4 && !mouthMoved) {
           return result(
-              const CalibrationIssue('Sorriso não identificado', 'Sorria mostrando os dentes ou dê uma risada.'),
+              const CalibrationIssue('Sorriso não identificado', 'Sorria mostrando os dentes ou dê uma risada.',
+                  canSkip: true),
               marVar);
         }
         return result(null, marVar);
@@ -471,11 +519,12 @@ class FaceProfile {
   }
 
   bool get forced => steps.values.any((s) => s.forced);
+  bool get yawnSkipped => steps[2]?.skipped ?? false;
 
   /// Confiança geral: alta, média (reforço) ou baixa (etapa forçada).
   String get confidence => forced
       ? 'Baixa'
-      : (t.lowEyeConfidence || (t.phonePosition?.needsReinforcement ?? false))
+      : (t.lowEyeConfidence || yawnSkipped || (t.phonePosition?.needsReinforcement ?? false))
           ? 'Média'
           : 'Alta';
 
@@ -532,14 +581,17 @@ class FaceProfile {
     }
 
     final y = t.yawnMar;
-    if (y != null) {
+    if (yawnSkipped) {
+      list.add(FaceCheck(CheckLevel.warn, 'Bocejo não calibrado',
+          'Etapa pulada: o app usa o limite padrão de bocejo (${_n(t.mar)}). Dá para refazer a calibração depois.'));
+    } else if (y != null) {
       list.add(FaceCheck(CheckLevel.good, 'Bocejo registrado',
           'MAR do bocejo ${_n(y)}${t.openMar != null ? ' (boca fechada ${_n(t.openMar!)})' : ''}: '
               'limite de bocejo ${_n(t.mar)}.'));
     }
 
     final smile = steps[3];
-    list.add(smile == null
+    list.add(smile == null || smile.skipped
         ? const FaceCheck(CheckLevel.info, 'Sorriso não calibrado',
             'Etapa opcional pulada. Dá para fazer depois em Configurações.')
         : FaceCheck(CheckLevel.good, 'Sorriso registrado',

@@ -123,16 +123,44 @@ void main() {
       expect(a.issue!.canForce, isTrue);
     });
 
-    test('bocejo pequeno reprova; bocejo grande passa', () {
+    test('boca quase fechada não completa o bocejo (e permite pular)', () {
       const ref = CalibrationReference(pitch: 0, roll: 0, yaw: 0, openEar: 0.3, openMar: 0.08);
       final small = CalibrationSampler()..configure(2, ref: ref);
-      final a = feed(small, ear: (_) => 0.3, mar: (i) => jitter(i, 0.45, 0.01));
+      final a = feed(small, ear: (_) => 0.3, mar: (i) => jitter(i, 0.15, 0.01));
       expect(a.ok, isFalse);
+      expect(a.issue!.canSkip, isTrue);
+      expect(small.issues[FrameIssue.mouthNotOpen], greaterThan(0));
+    });
 
-      final big = CalibrationSampler()..configure(2, ref: ref);
-      final b = feed(big, ear: (_) => 0.3, mar: (i) => jitter(i, 0.85, 0.02));
-      expect(b.ok, isTrue);
-      expect(b.mar, closeTo(0.85, 0.03));
+    test('bocejo mais contido (MAR 0,42) passa', () {
+      const ref = CalibrationReference(pitch: 0, roll: 0, yaw: 0, openEar: 0.3, openMar: 0.08);
+      final s = CalibrationSampler()..configure(2, ref: ref);
+      final a = feed(s, ear: (_) => 0.3, mar: (i) => jitter(i, 0.42, 0.02));
+      expect(a.ok, isTrue);
+      expect(a.mar, closeTo(0.42, 0.03));
+    });
+
+    test('bocejo de verdade: cabeça vai para trás e a boca abre e fecha — passa', () {
+      const ref = CalibrationReference(pitch: 0, roll: 0, yaw: 0, openEar: 0.3, openMar: 0.08);
+      final s = CalibrationSampler()..configure(2, ref: ref);
+      // boca oscilando entre 0,45 e 0,85; cabeça inclinada 15° para trás
+      final a = feed(s,
+          ear: (_) => 0.2,
+          mar: (i) => 0.65 + 0.2 * math.sin(i * 0.25),
+          pitch: (i) => 15 + 0.5 * math.sin(i * 0.3));
+      expect(a.ok, isTrue);
+      expect(a.mar, greaterThan(0.7)); // usa a parte mais aberta
+      expect(s.target, samplesForStep(2));
+      expect(samplesForStep(2), lessThan(samplesPerStep));
+    });
+
+    test('limiar de bocejo pessoal fica abaixo do próprio bocejo', () {
+      final t = Thresholds()
+        ..applyCalibration(0, 0.3, 0.08)
+        ..applyCalibration(1, 0.1, 0.08)
+        ..applyCalibration(2, 0.42, 0.42);
+      expect(t.mar, lessThan(0.42));
+      expect(t.mar, greaterThan(0.08));
     });
 
     test('sorriso não identificado reprova', () {
