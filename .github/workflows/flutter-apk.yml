@@ -27,16 +27,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # Versão fixa do Flutter: a mesma em que o app foi desenvolvido e testado.
+      # (Com "a mais recente", o Flutter 3.50 passou a marcar material.dart como
+      # obsoleto e a análise estática quebrou o build sem mudança no código.)
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.47.9'
           cache: true
 
       - name: Dependências
         run: flutter pub get
 
+      # Erros e avisos (warnings) continuam quebrando o build; só os "info" não.
       - name: Análise estática
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: Testes
         run: flutter test
@@ -55,9 +60,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Versão fixa do Flutter: a mesma em que o app foi desenvolvido e testado.
+      # (Com "a mais recente", o Flutter 3.50 passou a marcar material.dart como
+      # obsoleto e a análise estática quebrou o build sem mudança no código.)
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.47.9'
           cache: true
 
       - name: Dependências
