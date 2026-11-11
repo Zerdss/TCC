@@ -5,10 +5,12 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'data/calibration_store.dart';
 import 'data/session_database.dart';
 import 'data/settings_store.dart';
+import 'platform/floating_window.dart';
 import 'screens/home_screen.dart';
 import 'theme.dart';
 import 'vision/vision_controller.dart';
 import 'widgets/common.dart';
+import 'widgets/floating_view.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,7 +56,32 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     vision.addListener(_syncWakelock);
+    vision.addListener(_syncFloating);
     vision.loadPreferences();
+    floating.onAcknowledge = vision.acknowledgeAlert;
+    floating.addListener(_onFloating);
+    floating.init();
+  }
+
+  FloatingWindow get floating => FloatingWindow.instance;
+  bool? _autoFloating;
+
+  /// Janela flutuante automática só enquanto o painel ao vivo está monitorando.
+  void _syncFloating() {
+    final want = vision.settings.floatingWindow && vision.isMonitoring && vision.camera != null;
+    if (want == _autoFloating) return;
+    _autoFloating = want;
+    floating.setAutoEnter(want);
+  }
+
+  void _onFloating() {
+    if (mounted) setState(() {});
+    _syncFloating();
+    // Fechou a janela flutuante (X): o app saiu da tela, então a câmera para.
+    final life = WidgetsBinding.instance.lifecycleState;
+    if (!floating.active && (life == AppLifecycleState.paused || life == AppLifecycleState.hidden)) {
+      didChangeAppLifecycleState(life!);
+    }
   }
 
   // Mantém a tela ligada enquanto a câmera estiver monitorando e aplica a
@@ -76,7 +103,10 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+    // "inactive" acontece na janela flutuante e na tela dividida (o app continua
+    // visível): a câmera segue ligada. Só para quando o app some da tela.
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      if (floating.active) return;
       if (vision.camera != null) {
         _resumeCamera = true;
         vision.stop();
@@ -91,6 +121,8 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     vision.removeListener(_syncWakelock);
+    vision.removeListener(_syncFloating);
+    floating.removeListener(_onFloating);
     vision.dispose();
     super.dispose();
   }
@@ -101,7 +133,14 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
       title: 'Fatigue Guard — Detecção de Sonolência',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
-      builder: (context, child) => AppScope(vision: vision, child: child!),
+      // Na janela flutuante, mostra só o status (o resto do app fica guardado, sem perder o estado).
+      builder: (context, child) => AppScope(
+        vision: vision,
+        child: Stack(children: [
+          Offstage(offstage: floating.active, child: child!),
+          if (floating.active) Positioned.fill(child: FloatingView(vision: vision)),
+        ]),
+      ),
       home: HomeScreen(vision: vision),
     );
   }

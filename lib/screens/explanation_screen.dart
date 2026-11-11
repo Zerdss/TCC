@@ -60,6 +60,10 @@ class ExplanationScreen extends StatelessWidget {
               '(75% do ângulo e 80% do tempo) e o olho fechado passa a ser medido pela probabilidade do ML Kit, '
               'quando ela separa melhor. A boca segue igual. O app também avisa se o celular está muito abaixo, '
               'acima ou de lado.'),
+      (Icons.picture_in_picture_alt_outlined, AppColors.blue, 'Junto com o GPS',
+          'No Android, ao sair do app durante o monitoramento ele vira uma janela flutuante por cima do GPS e '
+              'continua detectando: o status aparece em cores e o alarme toca normalmente. Toque na janela para '
+              'ver o botão "Estou acordado" ou voltar ao app. No iPhone o sistema não permite.'),
       (Icons.no_accounts_outlined, AppColors.red, 'Rosto fora da câmera',
           'Se o rosto some por 2 s aparece ATENÇÃO; por 4 s, ALERTA. Cobre a cabeça caída para fora do '
               'quadro e o celular mal posicionado.'),

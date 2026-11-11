@@ -20,6 +20,7 @@ class SettingsStore {
   static const _landscape = 'settings.allowLandscape';
   static const _autoCal = 'settings.autoAdvanceCalibration';
   static const _reinforce = 'settings.forceReinforced';
+  static const _floating = 'settings.floatingWindow';
 
   Future<StoredSettings> load() async {
     final p = await SharedPreferences.getInstance();
@@ -40,6 +41,7 @@ class SettingsStore {
       allowLandscape: p.getBool(_landscape) ?? false,
       autoAdvanceCalibration: p.getBool(_autoCal) ?? true,
       forceReinforced: p.getBool(_reinforce) ?? false,
+      floatingWindow: p.getBool(_floating) ?? true,
     );
   }
 
@@ -61,6 +63,7 @@ class SettingsStore {
     await p.setBool(_landscape, detection.allowLandscape);
     await p.setBool(_autoCal, detection.autoAdvanceCalibration);
     await p.setBool(_reinforce, detection.forceReinforced);
+    await p.setBool(_floating, detection.floatingWindow);
   }
 }
 
@@ -82,6 +85,7 @@ class StoredSettings {
     required this.allowLandscape,
     this.autoAdvanceCalibration = true,
     this.forceReinforced = false,
+    this.floatingWindow = true,
   });
 
   final bool sound;
@@ -100,6 +104,7 @@ class StoredSettings {
   final bool allowLandscape;
   final bool autoAdvanceCalibration;
   final bool forceReinforced;
+  final bool floatingWindow;
 
   void applyTo(DetectionSettings d) {
     d
@@ -116,6 +121,7 @@ class StoredSettings {
       ..escalatingAlert = escalatingAlert
       ..allowLandscape = allowLandscape
       ..autoAdvanceCalibration = autoAdvanceCalibration
-      ..forceReinforced = forceReinforced;
+      ..forceReinforced = forceReinforced
+      ..floatingWindow = floatingWindow;
   }
 }

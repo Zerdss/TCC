@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../platform/floating_window.dart';
 import '../theme.dart';
 import '../vision/fatigue_engine.dart';
 import '../vision/vision_controller.dart';
@@ -43,6 +44,17 @@ class _DemoScreenState extends State<DemoScreen> {
     super.dispose();
   }
 
+  Future<void> _useWithGps() async {
+    final ok = await FloatingWindow.instance.enter();
+    if (ok || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Este aparelho não oferece janela flutuante. No Android, use a tela dividida '
+          '(app de GPS em cima, Fatigue Guard embaixo). No iPhone o sistema não deixa a câmera '
+          'funcionar com outro app aberto.'),
+      duration: Duration(seconds: 6),
+    ));
+  }
+
   void _recalibrate() {
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => CalibrationScreen(vision: vision)));
   }
@@ -73,6 +85,15 @@ class _DemoScreenState extends State<DemoScreen> {
       child: CameraPanel(vision: vision),
     );
     final telemetry = ListenableBuilder(listenable: vision, builder: (context, _) => _Telemetry(vision: vision));
+    final gpsButton = SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        key: const Key('button-usar-gps'),
+        onPressed: _useWithGps,
+        icon: const Icon(Icons.picture_in_picture_alt_outlined, size: 18),
+        label: const Text('Usar junto com o GPS (janela flutuante)'),
+      ),
+    );
     final buttons = Row(
       children: [
         Expanded(
@@ -109,7 +130,14 @@ class _DemoScreenState extends State<DemoScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         flex: 6,
-                        child: Column(children: [status, telemetry, const SizedBox(height: 16), buttons]),
+                        child: Column(children: [
+                          status,
+                          telemetry,
+                          const SizedBox(height: 16),
+                          gpsButton,
+                          const SizedBox(height: 10),
+                          buttons,
+                        ]),
                       ),
                     ],
                   ),
@@ -124,6 +152,8 @@ class _DemoScreenState extends State<DemoScreen> {
                   const SizedBox(height: 20),
                   const Divider(),
                   const SizedBox(height: 12),
+                  gpsButton,
+                  const SizedBox(height: 10),
                   buttons,
                 ],
         ),

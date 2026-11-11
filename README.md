@@ -48,6 +48,13 @@ Fluxo:
   tela cheia piscando, bipe e vibração; se continuar por 4 s, sirene rápida e vibração longa.
   Botão **"Estou acordado"** silencia por 10 s. O som toca no canal de alarme (Android) e
   mesmo no modo silencioso (iPhone). Tela sempre ligada durante o monitoramento.
+- **Junto com o GPS — janela flutuante** (Android 8+): durante o monitoramento, ao apertar
+  "início" (ou no botão "Usar junto com o GPS"), o app vira uma janela pequena por cima do outro
+  app (Maps, Waze...) e continua detectando: mostra NORMAL / ATENÇÃO / ALERTA em cores, toca o
+  alarme e tem o botão "Estou acordado" nos controles da janela. A câmera continua ligada porque
+  a janela segue visível. Também funciona com a tela dividida do Android. Pode ser desligado
+  em Configurações. No iPhone não é possível: o iOS não deixa a câmera funcionar com outro app
+  em primeiro plano.
 - **Modo deitado** (opcional): celular na horizontal no suporte do carro, com câmera e métricas
   lado a lado. Se o aparelho entregar a imagem num ângulo inesperado, o app testa as rotações
   sozinho até reencontrar o rosto.

@@ -239,6 +239,10 @@ class DetectionSettings {
   /// aberto), mesmo quando a calibração não indicou olhos pouco visíveis.
   bool forceReinforced = false;
 
+  /// Ao sair do app durante o monitoramento, continua numa janela flutuante
+  /// (Android), para usar junto com o GPS.
+  bool floatingWindow = true;
+
   /// ATENÇÃO aparece um pouco antes do alerta (mesma proporção do protótipo).
   int get eyesWarnMs => (eyesAlertMs * warnClosedMs / closedFatigueMs).round();
   int get mouthWarnMs => (yawnAlertMs * warnMouthMs / yawnMinMs).round();
@@ -260,6 +264,7 @@ class DetectionSettings {
     allowLandscape = false;
     autoAdvanceCalibration = true;
     forceReinforced = false;
+    floatingWindow = true;
   }
 }
 

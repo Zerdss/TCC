@@ -4,6 +4,7 @@ import 'package:fatigue_guard/screens/home_screen.dart';
 import 'package:fatigue_guard/screens/settings_screen.dart';
 import 'package:fatigue_guard/theme.dart';
 import 'package:fatigue_guard/vision/vision_controller.dart';
+import 'package:fatigue_guard/widgets/floating_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -48,6 +49,19 @@ void main() {
     // Fecha a tela de calibração (como o botão voltar).
     await tester.pumpWidget(const SizedBox());
     expect(vision.calibrationStep, isNull);
+    vision.dispose();
+  });
+
+  testWidgets('janela flutuante mostra o status de forma compacta', (tester) async {
+    final vision = VisionController();
+    await tester.binding.setSurfaceSize(const Size(240, 160)); // tamanho típico da janela
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: FloatingView(vision: vision)));
+    // Câmera desligada nos testes: não está monitorando.
+    expect(find.text('PAUSADO'), findsOneWidget);
+    expect(find.text('Abra o app para monitorar'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.binding.setSurfaceSize(null);
+    await tester.pumpWidget(const SizedBox());
     vision.dispose();
   });
 }

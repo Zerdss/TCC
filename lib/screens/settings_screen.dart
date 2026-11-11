@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../platform/floating_window.dart';
 import '../theme.dart';
 import '../vision/fatigue_engine.dart';
 import '../vision/vision_controller.dart';
@@ -272,6 +273,21 @@ class SettingsScreen extends StatelessWidget {
                 value: s.allowLandscape,
                 onChanged: (v) {
                   s.allowLandscape = v;
+                  vision.saveSettings();
+                },
+              ),
+              const Divider(height: 1),
+              _SwitchRow(
+                icon: Icons.picture_in_picture_alt_outlined,
+                title: 'Janela flutuante ao sair do app',
+                subtitle: FloatingWindow.instance.supported
+                    ? 'Durante o monitoramento, ao apertar o botão "início" o detector continua numa janela '
+                        'pequena por cima de outro app (ex.: GPS), com o status e o alarme funcionando.'
+                    : 'Este aparelho não oferece janela flutuante (no iPhone o sistema não permite a câmera '
+                        'em segundo plano). Use a tela dividida, se o aparelho tiver.',
+                value: s.floatingWindow,
+                onChanged: (v) {
+                  s.floatingWindow = v;
                   vision.saveSettings();
                 },
               ),
