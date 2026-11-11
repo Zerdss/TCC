@@ -162,3 +162,69 @@ String eventsToCsv(List<SessionEvent> events, {List<SessionRecord> sessions = co
   }
   return b.toString();
 }
+
+/// Explicação de cada coluna, no fim do relatório.
+const reportLegend = [
+  ['Sessão', 'Número da sessão de monitoramento (1 = a mais antiga). É o mesmo número nas duas tabelas.'],
+  ['Duração', 'Tempo da sessão em horas:minutos:segundos.'],
+  ['Total de alertas', 'Soma dos alertas de sonolência da sessão (olhos, bocejo, cabeça e rosto).'],
+  ['Alertas: olhos fechados', 'Olhos fechados de forma contínua por 1,2 s ou mais (piscadas normais não contam).'],
+  ['Alertas: bocejo', 'Boca bem aberta de forma contínua por 1,8 s ou mais.'],
+  ['Alertas: cabeça caindo', 'Cabeça baixa ou tombada para o lado (cochilo) com os olhos fechados.'],
+  ['Alertas: rosto fora da câmera', 'O rosto sumiu da câmera por 4 s ou mais.'],
+  ['Avisos de atenção', 'Sinais leves, antes do alerta (ex.: olhando para baixo ou para o lado por mais de 2,5 s).'],
+  ['PERCLOS (%)', 'Porcentagem do último minuto com os olhos fechados. Quanto maior, mais cansaço.'],
+  ['Piscadas por minuto', 'Média de piscadas. Muitas piscadas também indicam cansaço.'],
+  ['EAR (olhos)', 'Abertura dos olhos medida pela câmera: quanto menor, mais fechados.'],
+  ['MAR (boca)', 'Abertura da boca medida pela câmera: quanto maior, mais aberta.'],
+  ['Limiar EAR / Limiar MAR', 'Limites usados para o motorista: olho abaixo do limiar = fechado, boca acima do limiar = bocejo.'],
+  ['Calibração pessoal', 'Sim = limites medidos na calibração do motorista. Não = valores padrão do app.'],
+  ['Tempo na sessão', 'Quanto tempo depois do início da sessão o alerta aconteceu.'],
+];
+
+/// Relatório completo num único arquivo, separado em seções (resumo, sessões,
+/// alertas e legenda) com linhas em branco entre elas, para abrir no Excel ou
+/// nas Planilhas Google.
+String reportToCsv(List<SessionRecord> sessions, List<SessionEvent> events, {DateTime? generatedAt}) {
+  final now = generatedAt ?? DateTime.now();
+  final list = _chronological(sessions);
+  final total = list.fold(Duration.zero, (a, s) => a + s.duration);
+  final alerts = list.fold(0, (a, s) => a + s.totalAlerts);
+  final attention = list.fold(0, (a, s) => a + s.attentionCount);
+  final b = StringBuffer()
+    ..writeln(_row(['FATIGUE GUARD - RELATÓRIO DE MONITORAMENTO']))
+    ..writeln(_row(['Protótipo de detecção de sonolência em motoristas (TCC)']))
+    ..writeln()
+    ..writeln(_row(['Gerado em', '${csvDate(now)} ${csvTime(now)}']))
+    ..writeln(_row(['Sessões', list.length]))
+    ..writeln(_row(['Tempo total monitorado', csvDuration(total)]))
+    ..writeln(_row(['Total de alertas', alerts]))
+    ..writeln(_row(['Avisos de atenção', attention]))
+    ..writeln()
+    ..writeln()
+    ..writeln(_row(['1. RESUMO DAS SESSÕES']))
+    ..writeln(_row(['Uma linha por sessão de monitoramento, da mais antiga para a mais recente. '
+        'A última linha (TOTAL) soma todas as sessões.']))
+    ..writeln()
+    ..write(list.isEmpty ? '${_row(['Nenhuma sessão registrada.'])}\n' : sessionsToCsv(list))
+    ..writeln()
+    ..writeln()
+    ..writeln(_row(['2. ALERTAS E AVISOS']))
+    ..writeln(_row(['Cada alerta de sonolência ou aviso de atenção, na ordem em que aconteceu. '
+        'A coluna Sessão é o número da tabela 1.']))
+    ..writeln()
+    ..write(events.isEmpty ? '${_row(['Nenhum alerta ou aviso registrado.'])}\n' : eventsToCsv(events, sessions: list))
+    ..writeln()
+    ..writeln()
+    ..writeln(_row(['3. COMO LER ESTE ARQUIVO']))
+    ..writeln()
+    ..writeln(_row(['Coluna', 'O que significa']));
+  for (final l in reportLegend) {
+    b.writeln(_row(l));
+  }
+  b
+    ..writeln()
+    ..writeln(_row(['Privacidade', 'O app não grava imagens nem vídeos: este arquivo tem só números e horários.']))
+    ..writeln(_row(['Aviso', 'Protótipo acadêmico. Não substitui o descanso: ao sentir sono, pare em local seguro.']));
+  return b.toString();
+}

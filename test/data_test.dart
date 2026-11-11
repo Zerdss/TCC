@@ -179,6 +179,36 @@ void main() {
     expect(row[4], 'ALERTA - cabeça caindo');
   });
 
+  test('relatório único: resumo, sessões, alertas e legenda separados por linhas em branco', () {
+    final s = sampleSession();
+    final csv = reportToCsv([s], s.events, generatedAt: DateTime(2026, 11, 11, 18, 30));
+    final lines = csv.split('\n');
+    expect(lines.first, 'FATIGUE GUARD - RELATÓRIO DE MONITORAMENTO');
+    expect(lines, contains('Gerado em;11/11/2026 18:30:00'));
+    expect(lines, contains('Sessões;1'));
+    expect(lines, contains('Total de alertas;2'));
+    final i1 = lines.indexOf('1. RESUMO DAS SESSÕES');
+    final i2 = lines.indexOf('2. ALERTAS E AVISOS');
+    final i3 = lines.indexOf('3. COMO LER ESTE ARQUIVO');
+    expect(i1, greaterThan(0));
+    expect(i2, greaterThan(i1));
+    expect(i3, greaterThan(i2));
+    // cada seção começa depois de linhas em branco (não fica grudada)
+    expect(lines[i1 - 1], isEmpty);
+    expect(lines[i2 - 1], isEmpty);
+    expect(lines[i3 - 1], isEmpty);
+    expect(lines[i1 + 3], startsWith('Sessão;Data;Início'));
+    expect(lines.sublist(i1, i2).any((l) => l.startsWith('TOTAL;')), isTrue);
+    expect(lines.sublist(i2, i3).where((l) => l.contains('ALERTA - ')), hasLength(2));
+    expect(lines.sublist(i3), contains(startsWith('PERCLOS (%);')));
+  });
+
+  test('relatório sem alertas avisa em vez de deixar a tabela vazia', () {
+    final s = sampleSession();
+    final csv = reportToCsv([s], const []);
+    expect(csv, contains('Nenhum alerta ou aviso registrado.'));
+  });
+
   test('CSV escapa campos com ponto e vírgula', () {
     expect(csvField('a;b'), '"a;b"');
     expect(csvField('diz "oi"'), '"diz ""oi"""');

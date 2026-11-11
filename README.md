@@ -107,13 +107,17 @@ CREATE TABLE events (
 );
 ```
 
-A exportação gera dois arquivos (`FatigueGuard_sessoes_<data>.csv` e
-`FatigueGuard_alertas_<data>.csv`) no padrão brasileiro — separador `;`, vírgula decimal,
-datas dd/mm/aaaa, horários hh:mm:ss, cabeçalhos legíveis ("Alertas: olhos fechados",
-"PERCLOS máximo (%)"...) — e abre o menu de compartilhar do celular. As sessões vêm em
-ordem cronológica, numeradas, com uma linha de **TOTAL** no fim; os alertas trazem o número
-da sessão, o tempo decorrido nela e o tipo por extenso. Abrem direto no Excel/Planilhas,
-prontos para tabelas e gráficos no capítulo de resultados do TCC.
+A exportação gera **um único arquivo** (`FatigueGuard_relatorio_<data>.csv`) e abre o menu de
+compartilhar do celular. Ele é organizado em seções, separadas por linhas em branco:
+
+1. **Cabeçalho**: data de geração, número de sessões, tempo total monitorado e totais de alertas.
+2. **Resumo das sessões**: uma linha por sessão (ordem cronológica, numeradas) e uma linha de **TOTAL**.
+3. **Alertas e avisos**: cada evento com o número da sessão, data, horário, tempo decorrido na
+   sessão, tipo por extenso ("ALERTA - cabeça caindo") e EAR/MAR/PERCLOS no momento.
+4. **Como ler este arquivo**: legenda explicando cada coluna.
+
+Padrão brasileiro: separador `;`, vírgula decimal, datas dd/mm/aaaa e horários hh:mm:ss. Abre
+direto no Excel/Planilhas, pronto para tabelas e gráficos no capítulo de resultados do TCC.
 
 ## Como rodar
 

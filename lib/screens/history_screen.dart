@@ -52,16 +52,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final now = DateTime.now();
     String two(int v) => v.toString().padLeft(2, '0');
     final stamp = '${now.year}-${two(now.month)}-${two(now.day)}_${two(now.hour)}h${two(now.minute)}';
-    final sessionsFile = File(p.join(dir.path, 'FatigueGuard_sessoes_$stamp.csv'));
-    final eventsFile = File(p.join(dir.path, 'FatigueGuard_alertas_$stamp.csv'));
-    // BOM UTF‑8 para o Excel reconhecer os acentos.
-    await sessionsFile.writeAsString('﻿${sessionsToCsv(sessions)}');
-    await eventsFile.writeAsString('﻿${eventsToCsv(events, sessions: sessions)}');
+    final file = File(p.join(dir.path, 'FatigueGuard_relatorio_$stamp.csv'));
+    // Um arquivo só, em seções. BOM UTF‑8 para o Excel reconhecer os acentos.
+    await file.writeAsString('\uFEFF${reportToCsv(sessions, events, generatedAt: now)}');
     await SharePlus.instance.share(ShareParams(
-      files: [XFile(sessionsFile.path), XFile(eventsFile.path)],
-      subject: 'Fatigue Guard — histórico de sessões',
-      text: 'Histórico exportado do app Fatigue Guard (TCC): um arquivo com o resumo de cada sessão '
-          '(com total no fim) e outro com cada alerta/atenção. Abra no Excel ou nas Planilhas Google.',
+      files: [XFile(file.path)],
+      subject: 'Fatigue Guard — relatório de monitoramento',
+      text: 'Relatório do app Fatigue Guard (TCC): resumo, sessões, alertas e uma legenda explicando cada '
+          'coluna. Abra no Excel ou nas Planilhas Google.',
     ));
   }
 
