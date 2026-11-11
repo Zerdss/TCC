@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import '../vision/calibration.dart';
 import '../vision/fatigue_engine.dart';
 import '../vision/vision_controller.dart';
 import '../widgets/camera_panel.dart';
@@ -67,7 +68,13 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   int? _countdown;
   Timer? _timer;
   Timer? _advanceTimer;
+  Timer? _retryTimer;
   bool _stepDone = false;
+  bool _failHandled = false;
+
+  /// Todas as etapas passaram: mostra a análise do rosto para confirmar.
+  bool _summary = false;
+  bool _committed = false;
 
   VisionController get vision => widget.vision;
   bool get _single => widget.onlyStep != null;
@@ -77,6 +84,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     super.initState();
     _wasMonitoring = vision.calibrationStep == null;
     _auto = vision.settings.autoAdvanceCalibration;
+    vision.startCalibration(full: widget.onlyStep == null);
     vision.acquireCamera();
     vision.addListener(_onVision);
     _startStep(step);
@@ -86,7 +94,10 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   void dispose() {
     _timer?.cancel();
     _advanceTimer?.cancel();
+    _retryTimer?.cancel();
     vision.removeListener(_onVision);
+    // Saiu sem confirmar: nada muda, a calibração anterior continua valendo.
+    if (!_committed) vision.cancelCalibration();
     // Se abriu por cima do painel ao vivo, devolve o painel ao monitoramento.
     if (_wasMonitoring && !_leavingToDemo) vision.beginMonitoring();
     vision.releaseCamera();
@@ -97,7 +108,9 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   void _startStep(int s) {
     _timer?.cancel();
     _advanceTimer?.cancel();
+    _retryTimer?.cancel();
     _stepDone = false;
+    _failHandled = false;
     vision.beginCalibration(s, paused: true);
     setState(() => _countdown = 3);
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
@@ -119,7 +132,21 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
 
   /// Detecta o fim da etapa: toca o "plim", vibra e (se automático) avança.
   void _onVision() {
-    if (_stepDone || _countdown != null || vision.calibrationProgress < 100) return;
+    if (_summary || _countdown != null) return;
+    final failure = vision.calibrationFailure;
+    if (failure != null && !_failHandled) {
+      _failHandled = true;
+      vision.playCue('tick', vibrate: true);
+      // Repete sozinha até o limite de tentativas; depois, o usuário escolhe.
+      if (_attempts < calibMaxAttempts) {
+        _retryTimer = Timer(const Duration(milliseconds: 3500), () {
+          if (mounted) _startStep(step);
+        });
+      }
+      if (mounted) setState(() {});
+      return;
+    }
+    if (_stepDone || vision.calibrationProgress < 100) return;
     _stepDone = true;
     vision.playCue('ok', vibrate: true);
     if (_auto) {
@@ -137,6 +164,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     if (value && _stepDone) _next();
   }
 
+  int get _attempts => vision.calibrationAttempts[step] ?? 0;
+
   void _next() {
     _advanceTimer?.cancel();
     if (_single) {
@@ -145,12 +174,30 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       setState(() => step++);
       _startStep(step);
     } else {
-      _openDemo();
+      _showSummary();
     }
   }
 
+  /// Fim das etapas: mostra a análise completa antes de confirmar.
+  void _showSummary() {
+    _timer?.cancel();
+    _advanceTimer?.cancel();
+    _retryTimer?.cancel();
+    setState(() => _summary = true);
+  }
+
+  void _restartAll() {
+    vision.startCalibration(full: true);
+    setState(() {
+      _summary = false;
+      step = 0;
+    });
+    _startStep(0);
+  }
+
   void _finishSingle() {
-    vision.saveCalibration();
+    _committed = true;
+    vision.commitCalibration();
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('Calibração do sorriso atualizada.')));
     Navigator.of(context).pop();
@@ -161,7 +208,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     _leavingToDemo = true;
     _timer?.cancel();
     _advanceTimer?.cancel();
-    vision.saveCalibration();
+    _committed = true;
+    vision.commitCalibration();
     vision.beginMonitoring();
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => DemoScreen(vision: vision)));
   }
@@ -212,6 +260,13 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
         ListenableBuilder(
           listenable: vision,
           builder: (context, _) {
+            if (_summary) {
+              final profile = vision.faceProfile;
+              if (profile == null) return const SizedBox.shrink();
+              return _FaceAnalysis(profile: profile, onConfirm: _openDemo, onRestart: _restartAll);
+            }
+            final failure = vision.calibrationFailure;
+            final draft = vision.calibrationDraft;
             final progress = vision.calibrationProgress;
             final done = progress >= 100;
             final running = vision.state == EngineState.running;
@@ -289,8 +344,17 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                                 ? 'Aguardando câmera...'
                                 : _countdown != null
                                     ? 'Começando em $_countdown...'
-                                    : 'Analisando padrão facial...',
-                        style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                                    : failure != null
+                                        ? 'Etapa não aprovada'
+                                        : frameIssueText(vision.calibrationIssue),
+                        key: const Key('calibration-hint'),
+                        style: TextStyle(
+                            color: !done && _countdown == null && running && failure == null &&
+                                    vision.calibrationIssue != FrameIssue.none
+                                ? AppColors.yellow
+                                : AppColors.muted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600),
                       ),
                       if (running) ...[
                         const SizedBox(height: 12),
@@ -305,20 +369,31 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                     ],
                   ),
                 ),
-                if (vision.thresholds.phonePosition case final pos?) ...[
+                if (failure != null && failure.issue != null) ...[
                   const SizedBox(height: 12),
-                  PhonePositionBanner(position: pos),
+                  _FailureBanner(
+                    issue: failure.issue!,
+                    attempt: _attempts,
+                    retrying: _attempts < calibMaxAttempts,
+                    onRetry: () => _startStep(step),
+                    onForce: failure.issue!.canForce ? vision.forceAcceptStep : null,
+                    onSkip: step == 3 && !_single ? _showSummary : null,
+                  ),
                 ],
-                if (vision.thresholds.eyeSeparation != null) ...[
+                if (!_single && draft?.phonePosition != null) ...[
                   const SizedBox(height: 12),
-                  _EyeQualityBanner(low: vision.thresholds.lowEyeConfidence,
-                      usesProb: vision.thresholds.eyeProbThreshold != null),
+                  PhonePositionBanner(position: draft!.phonePosition!),
+                ],
+                if (draft?.eyeSeparation != null && !_single) ...[
+                  const SizedBox(height: 12),
+                  _EyeQualityBanner(low: draft!.lowEyeConfidence,
+                      usesProb: draft.eyeProbThreshold != null),
                 ],
                 const SizedBox(height: 18),
                 PrimaryButton(
                   key: const Key('button-proxima'),
                   label: done
-                      ? (_single ? 'Salvar e voltar' : step == 3 ? 'Abrir painel ao vivo' : 'Próxima etapa')
+                      ? (_single ? 'Salvar e voltar' : step == 3 ? 'Ver análise do rosto' : 'Próxima etapa')
                       : 'Aguardando leitura...',
                   icon: done ? Icons.arrow_forward : Icons.center_focus_weak,
                   onPressed: done ? _next : null,
@@ -341,7 +416,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                 if (step == 3 && !_single)
                   TextButton(
                     key: const Key('button-skip-step'),
-                    onPressed: _openDemo,
+                    onPressed: _showSummary,
                     child: const Text('Pular etapa opcional',
                         style: TextStyle(
                             color: AppColors.muted,
@@ -488,6 +563,165 @@ class PhonePositionBanner extends StatelessWidget {
             Text('Posição do celular: ${position.label}', style: AppText.cardTitle.copyWith(color: color)),
             const SizedBox(height: 4),
             Text(position.detail, style: AppText.body.copyWith(fontSize: 12)),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Etapa reprovada: motivo, dica e opções.
+class _FailureBanner extends StatelessWidget {
+  const _FailureBanner({
+    required this.issue,
+    required this.attempt,
+    required this.retrying,
+    required this.onRetry,
+    this.onForce,
+    this.onSkip,
+  });
+
+  final CalibrationIssue issue;
+  final int attempt;
+  final bool retrying;
+  final VoidCallback onRetry;
+  final VoidCallback? onForce;
+  final VoidCallback? onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    const color = AppColors.red;
+    return Container(
+      key: const Key('calibration-failure'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.error_outline, color: color),
+          const SizedBox(width: 10),
+          Expanded(child: Text(issue.title, style: AppText.cardTitle.copyWith(color: color))),
+          Text('Tentativa $attempt/$calibMaxAttempts',
+              style: const TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 6),
+        Text(issue.hint, style: AppText.body.copyWith(fontSize: 12)),
+        const SizedBox(height: 6),
+        if (retrying)
+          const Text('Repetindo a etapa em instantes...',
+              style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600))
+        else
+          Wrap(spacing: 8, runSpacing: 4, children: [
+            FilledButton.icon(
+              key: const Key('button-retry-step'),
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Repetir etapa'),
+            ),
+            if (onForce != null)
+              OutlinedButton(
+                key: const Key('button-force-step'),
+                onPressed: onForce,
+                child: const Text('Continuar com reforço'),
+              ),
+            if (onSkip != null)
+              TextButton(onPressed: onSkip, child: const Text('Pular etapa opcional')),
+          ]),
+      ]),
+    );
+  }
+}
+
+/// Análise completa do rosto: só depois de conferir a calibração é confirmada.
+class _FaceAnalysis extends StatelessWidget {
+  const _FaceAnalysis({required this.profile, required this.onConfirm, required this.onRestart});
+
+  final FaceProfile profile;
+  final VoidCallback onConfirm;
+  final VoidCallback onRestart;
+
+  @override
+  Widget build(BuildContext context) {
+    final conf = profile.confidence;
+    final confColor = conf == 'Alta'
+        ? AppColors.green
+        : conf == 'Média'
+            ? AppColors.yellow
+            : AppColors.red;
+    return Column(
+      key: const Key('face-analysis'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Panel(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.face_retouching_natural, color: AppColors.accent),
+              const SizedBox(width: 10),
+              const Expanded(child: Text('Análise do seu rosto', style: AppText.h3)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: confColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text('Confiança: $conf',
+                    style: TextStyle(color: confColor, fontWeight: FontWeight.w800, fontSize: 12)),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Text(
+              'Todas as etapas passaram na análise. Confira como o app se ajustou ao seu rosto antes de '
+              'confirmar — só então a calibração é salva.',
+              style: AppText.body.copyWith(fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            for (final c in profile.checks) _CheckRow(check: c),
+          ]),
+        ),
+        const SizedBox(height: 18),
+        PrimaryButton(
+          key: const Key('button-confirmar-calibracao'),
+          label: 'Confirmar calibração e abrir painel',
+          icon: Icons.check_rounded,
+          onPressed: onConfirm,
+        ),
+        const SizedBox(height: 6),
+        TextButton(
+          key: const Key('button-refazer-calibracao'),
+          onPressed: onRestart,
+          child: const Text('Refazer calibração',
+              style: TextStyle(
+                  color: AppColors.muted, fontWeight: FontWeight.w700, decoration: TextDecoration.underline)),
+        ),
+      ],
+    );
+  }
+}
+
+class _CheckRow extends StatelessWidget {
+  const _CheckRow({required this.check});
+  final FaceCheck check;
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, color) = switch (check.level) {
+      CheckLevel.good => (Icons.check_circle, AppColors.green),
+      CheckLevel.info => (Icons.info_outline, AppColors.blue),
+      CheckLevel.warn => (Icons.warning_amber_rounded, AppColors.yellow),
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(check.title, style: AppText.cardTitle.copyWith(fontSize: 14)),
+            const SizedBox(height: 2),
+            Text(check.detail, style: AppText.body.copyWith(fontSize: 12)),
           ]),
         ),
       ]),

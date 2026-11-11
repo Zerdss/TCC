@@ -70,8 +70,13 @@ class ExplanationScreen extends StatelessWidget {
           'EAR e MAR passam por uma média móvel dos últimos quadros para evitar ruído. Depois de um alerta, '
               'o sistema só volta ao NORMAL após 1 s contínuo de olhos abertos, boca neutra e cabeça erguida.'),
       (Icons.center_focus_strong_outlined, AppColors.accent, 'Calibração pessoal',
-          'Limiar EAR = fechado + 28% × (aberto − fechado). Limiar MAR = 72% do bocejo, refinado pelo '
-              'sorriso. Tudo fica salvo no aparelho e pode ser ajustado em Configurações.'),
+          'Rígida e feita para o SEU rosto (olhos puxados, caídos, um mais fechado que o outro...). Cada quadro '
+              'só conta se o rosto estiver enquadrado, parado e na mesma posição da 1ª etapa; piscadas são '
+              'descartadas. São 80 quadros válidos por etapa, e cada etapa é analisada: leitura estável, olho '
+              'fechado realmente diferente do aberto, bocejo realmente aberto, sorriso identificado. Se não '
+              'passar, a etapa é repetida. No fim, o app mostra a análise do rosto e só salva quando você '
+              'confirma. Limiar EAR = fechado + 28% × (aberto − fechado); MAR = 72% do bocejo, refinado pelo '
+              'sorriso.'),
     ];
     return AppPage(
       children: [

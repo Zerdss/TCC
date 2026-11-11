@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fatigue_guard/vision/fatigue_engine.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -91,17 +93,6 @@ void main() {
     t.applyCalibration(3, 0.20, 0.30);
     expect(t.mar, closeTo(0.30 + 0.6 * 0.70, 1e-9));
     expect(t.marNeutral, closeTo(0.285, 1e-9));
-  });
-
-  test('CalibrationSampler conclui após $samplesPerStep amostras', () {
-    final s = CalibrationSampler();
-    var finished = false;
-    for (var i = 0; i < samplesPerStep; i++) {
-      finished = s.add(0.3, 0.1);
-    }
-    expect(finished, isTrue);
-    expect(s.progress, 100);
-    expect(s.medianEar, 0.3);
   });
 
   test('tempo de alerta configurável', () {
@@ -315,12 +306,25 @@ void main() {
     test('movimento brusco da cabeça pausa a medição dos olhos', () {
       final e = FatigueEngine(Thresholds())..setHeadBaseline(0, 0, 0);
       var m = FatigueMetrics.empty;
-      for (var t = 1, i = 0; t <= 2500; t += 33, i++) {
-        // cabeça balançando ~300°/s, olhos "fechados" na imagem pelo borrão
-        m = e.process(0.10, 0.1, t, pitch: 0, roll: 0, yaw: i.isEven ? 0 : 10);
+      var anyMoving = false;
+      for (var t = 1; t <= 2500; t += 33) {
+        // cabeça balançando de um lado a outro (±30°, 1,5 vez por segundo, até ~280°/s),
+        // olhos "fechados" na imagem pelo borrão
+        final yaw = 30 * math.sin(2 * math.pi * 1.5 * t / 1000);
+        m = e.process(0.10, 0.1, t, pitch: 0, roll: 0, yaw: yaw);
+        anyMoving |= m.moving;
+        expect(m.alert, isFalse);
       }
-      expect(m.moving, isTrue);
-      expect(m.alert, isFalse);
+      expect(anyMoving, isTrue);
+    });
+
+    test('tremor normal do detector não conta como movimento', () {
+      final e = FatigueEngine(Thresholds())..setHeadBaseline(0, 0, 0);
+      var m = FatigueMetrics.empty;
+      for (var t = 1, i = 0; t <= 2500; t += 33, i++) {
+        m = e.process(0.30, 0.1, t, pitch: i.isEven ? 1.5 : -1.5, roll: 0, yaw: i.isEven ? -1.5 : 1.5);
+        expect(m.moving, isFalse);
+      }
     });
 
     test('voltar a olhar a estrada encerra o aviso', () {

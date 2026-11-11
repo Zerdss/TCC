@@ -13,6 +13,7 @@ import '../data/models.dart';
 import '../data/session_database.dart';
 import '../data/session_recorder.dart';
 import '../data/settings_store.dart';
+import 'calibration.dart';
 import 'fatigue_engine.dart';
 import 'metrics.dart';
 
@@ -96,6 +97,22 @@ class VisionController extends ChangeNotifier {
   /// Etapa de calibração ativa (0..3) ou `null` quando está em monitoramento.
   int? calibrationStep;
   int calibrationProgress = 0;
+
+  /// Limiares em construção durante a calibração. Só viram os limiares do app
+  /// (e são salvos) em [commitCalibration], depois de todas as etapas passarem.
+  Thresholds? calibrationDraft;
+
+  /// Resultado das etapas aprovadas da calibração atual.
+  final Map<int, StepAnalysis> calibrationSteps = {};
+
+  /// Etapa reprovada (motivo e dica), ou `null`.
+  StepAnalysis? calibrationFailure;
+
+  /// Tentativas feitas em cada etapa.
+  final Map<int, int> calibrationAttempts = {};
+
+  /// Problema do quadro atual (orientação ao vivo).
+  FrameIssue calibrationIssue = FrameIssue.none;
 
   final Stopwatch _clock = Stopwatch()..start();
   int _fpsFrames = 0;
@@ -289,11 +306,63 @@ class VisionController extends ChangeNotifier {
   /// as amostras só começam em [resumeCalibration] (ex.: após a contagem 3‑2‑1).
   void beginCalibration(int step, {bool paused = false}) {
     endSession();
+    final draft = calibrationDraft ??= Thresholds()..copyFrom(thresholds);
     calibrationStep = step;
     calibrationProgress = 0;
     calibrationPaused = paused;
-    _sampler.reset();
+    calibrationFailure = null;
+    calibrationIssue = FrameIssue.none;
+    calibrationSteps.remove(step);
+    _sampler.configure(step, ref: step == 0 ? null : CalibrationReference.fromThresholds(draft));
     _notify();
+  }
+
+  /// Começa uma calibração em rascunho. [full] = do zero (todas as etapas);
+  /// senão parte dos limiares atuais (ex.: refazer só o sorriso).
+  void startCalibration({required bool full}) {
+    calibrationDraft = Thresholds()..copyFrom(thresholds);
+    if (full) calibrationDraft!.reset();
+    calibrationSteps.clear();
+    calibrationAttempts.clear();
+    calibrationFailure = null;
+  }
+
+  /// Análise do rosto com as etapas aprovadas até agora.
+  FaceProfile? get faceProfile {
+    final d = calibrationDraft;
+    return d == null ? null : FaceProfile(d, Map.of(calibrationSteps));
+  }
+
+  /// Aceita a etapa reprovada mesmo assim (só quando [CalibrationIssue.canForce]):
+  /// usa os valores medidos e liga o modo de reforço.
+  void forceAcceptStep() {
+    final f = calibrationFailure, step = calibrationStep, d = calibrationDraft;
+    if (f == null || step == null || d == null || !(f.issue?.canForce ?? false)) return;
+    d.applyCalibration(step, f.ear, f.mar, medianProb: f.eyeProb);
+    d.lowEyeConfidence = true;
+    calibrationSteps[step] = f.asForced();
+    calibrationFailure = null;
+    calibrationProgress = 100;
+    _notify();
+  }
+
+  /// Confirma a calibração: os limiares do rascunho passam a valer e são salvos.
+  Future<void> commitCalibration() async {
+    final d = calibrationDraft;
+    if (d == null) return;
+    thresholds.copyFrom(d);
+    thresholds.calibrated = true;
+    engine.reset();
+    calibrationDraft = null;
+    _notify();
+    await saveCalibration();
+  }
+
+  /// Abandona a calibração em andamento: os limiares anteriores continuam valendo.
+  void cancelCalibration() {
+    calibrationDraft = null;
+    calibrationSteps.clear();
+    calibrationFailure = null;
   }
 
   /// `true` enquanto a etapa espera a contagem regressiva terminar.
@@ -303,7 +372,36 @@ class VisionController extends ChangeNotifier {
     calibrationPaused = false;
     _sampler.reset();
     calibrationProgress = 0;
+    calibrationFailure = null;
     _notify();
+  }
+
+  /// Verifica o tempo máximo da etapa (também quando o rosto some do quadro).
+  void _checkCalibrationTimeout(int now) {
+    final step = calibrationStep;
+    if (step == null || calibrationPaused || calibrationFailure != null || calibrationProgress >= 100) return;
+    if (_sampler.timedOut(now)) _finishCalibrationStep(step);
+  }
+
+  void _finishCalibrationStep(int step) {
+    final d = calibrationDraft;
+    if (d == null) return;
+    final a = _sampler.analyze();
+    if (a.ok) {
+      d.applyCalibration(step, a.ear, a.mar, medianProb: a.eyeProb);
+      // Etapa "olhos abertos": guarda a posição normal da cabeça.
+      if (step == 0 && a.pitch != null && a.roll != null) {
+        d.headPitch = a.pitch;
+        d.headRoll = a.roll;
+        d.headYaw = a.yaw;
+      }
+      calibrationSteps[step] = a;
+      calibrationProgress = 100;
+    } else {
+      calibrationFailure = a;
+      calibrationAttempts[step] = (calibrationAttempts[step] ?? 0) + 1;
+      calibrationPaused = true;
+    }
   }
 
   AudioPlayer? _cuePlayer;
@@ -532,7 +630,12 @@ class VisionController extends ChangeNotifier {
     if (faces.isEmpty) {
       overlay = null;
       guide = const FramingGuide('Rosto não detectado — enquadre-se na câmera', false);
-      if (calibrationStep == null) _applyMonitoring(engine.noFace(now), now);
+      if (calibrationStep == null) {
+        _applyMonitoring(engine.noFace(now), now);
+      } else if (!calibrationPaused) {
+        calibrationIssue = FrameIssue.framing;
+        _checkCalibrationTimeout(now);
+      }
       return;
     }
     // Rosto mais próximo (maior caixa).
@@ -585,18 +688,25 @@ class VisionController extends ChangeNotifier {
         metrics = FatigueMetrics(ear: smooth.ear, mar: smooth.mar);
         return;
       }
-      final finished = _sampler.add(smooth.ear, smooth.mar, pitch: pitch, roll: roll, yaw: yaw, eyeProb: eyeProb);
-      calibrationProgress = _sampler.progress;
-      if (finished) {
-        thresholds.applyCalibration(step, _sampler.medianEar, _sampler.medianMar, medianProb: _sampler.medianProb);
-        // Etapa "olhos abertos": guarda a posição normal da cabeça.
-        final p = _sampler.medianPitch, r = _sampler.medianRoll;
-        if (step == 0 && p != null && r != null) {
-          final y = _sampler.medianYaw;
-          engine.setHeadBaseline(p, r, y);
-          thresholds.headPitch = p;
-          thresholds.headRoll = r;
-          thresholds.headYaw = y;
+      if (calibrationFailure == null && calibrationProgress < 100) {
+        calibrationIssue = _sampler.add(CalibrationFrame(
+          ear: smooth.ear,
+          mar: smooth.mar,
+          now: now,
+          leftEar: leftEar,
+          rightEar: rightEar,
+          pitch: pitch,
+          roll: roll,
+          yaw: yaw,
+          eyeProb: eyeProb,
+          smile: face.smilingProbability,
+          framed: _wellFramed(face.boundingBox, imageSize),
+        ));
+        calibrationProgress = _sampler.progress;
+        if (_sampler.done) {
+          _finishCalibrationStep(step);
+        } else {
+          _checkCalibrationTimeout(now);
         }
       }
       metrics = FatigueMetrics(ear: smooth.ear, mar: smooth.mar);
@@ -672,6 +782,15 @@ class VisionController extends ChangeNotifier {
   }
 
   /// [pitch] e [yaw] = ângulos do rosto em relação à câmera (graus, ML Kit).
+  /// Tamanho e posição do rosto adequados (a posição do celular não entra:
+  /// a calibração precisa funcionar com o celular abaixo, acima ou de lado).
+  bool _wellFramed(Rect box, Size image) {
+    final faceWidth = box.width / image.width;
+    final cx = box.center.dx / image.width;
+    final cy = box.center.dy / image.height;
+    return faceWidth >= 0.25 && faceWidth <= 0.85 && (cx - 0.5).abs() <= 0.16 && (cy - 0.5).abs() <= 0.18;
+  }
+
   FramingGuide _framing(Rect box, Size image, double? pitch, double? yaw) {
     final faceWidth = box.width / image.width;
     final cx = box.center.dx / image.width;

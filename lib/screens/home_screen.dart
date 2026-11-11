@@ -44,7 +44,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _start(BuildContext context) async {
-    vision.resetCalibration();
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => CalibrationScreen(vision: vision)));
     _refreshSaved();
   }

@@ -332,7 +332,6 @@ class SettingsScreen extends StatelessWidget {
                 title: 'Refazer calibração completa',
                 subtitle: 'Olhos abertos, fechados, bocejo e sorriso.',
                 onTap: () {
-                  vision.resetCalibration();
                   // Fecha Configurações e o painel antigo; a calibração abre um painel novo ao final.
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => CalibrationScreen(vision: vision)),

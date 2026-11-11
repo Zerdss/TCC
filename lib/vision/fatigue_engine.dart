@@ -158,6 +158,9 @@ const int lookAwayWarnMs = 2500;
 
 /// Movimento brusco da cabeça (graus por segundo): a medição pausa um instante.
 const double motionSpeedDegPerS = 120;
+
+/// Janela para medir a velocidade da cabeça (evita confundir tremor com movimento).
+const int motionWindowMs = 150;
 const int motionHoldMs = 300;
 
 /// Olho "claramente aberto": probabilidade do ML Kit ≥ 0,6 ou EAR 15% acima do limite.
@@ -186,8 +189,9 @@ const int faceLostAlertDefaultMs = 4000;
 /// Alerta progressivo: após este tempo em alerta, o aviso fica mais intenso.
 const int escalateAfterMs = 4000;
 
-/// Amostras coletadas em cada etapa da calibração.
-const int samplesPerStep = 60;
+/// Amostras VÁLIDAS (rosto enquadrado, parado e na posição certa) em cada
+/// etapa da calibração. A ~20 FPS, cerca de 4 s de leitura boa.
+const int samplesPerStep = 80;
 
 /// Ajustes do usuário (tela de Configurações). Os valores padrão são os
 /// validados no protótipo.
@@ -423,9 +427,39 @@ class Thresholds {
   PhonePosition? get phonePosition => PhonePosition.fromAngles(headPitch, headYaw);
 
   double? _openEar;
+  double? _openMar;
   double? _closedEar;
   double? _yawnMar;
   double? _openProb;
+  double? _closedProb;
+
+  /// Medidas pessoais registradas na calibração (para a análise do rosto).
+  double? get openEar => _openEar;
+  double? get openMar => _openMar;
+  double? get closedEar => _closedEar;
+  double? get yawnMar => _yawnMar;
+  double? get openProb => _openProb;
+  double? get closedProb => _closedProb;
+
+  /// Copia todos os valores (inclusive as medidas internas) de [o].
+  void copyFrom(Thresholds o) {
+    ear = o.ear;
+    mar = o.mar;
+    marNeutral = o.marNeutral;
+    calibrated = o.calibrated;
+    headPitch = o.headPitch;
+    headRoll = o.headRoll;
+    headYaw = o.headYaw;
+    lowEyeConfidence = o.lowEyeConfidence;
+    eyeSeparation = o.eyeSeparation;
+    eyeProbThreshold = o.eyeProbThreshold;
+    _openEar = o._openEar;
+    _openMar = o._openMar;
+    _closedEar = o._closedEar;
+    _yawnMar = o._yawnMar;
+    _openProb = o._openProb;
+    _closedProb = o._closedProb;
+  }
 
   void reset() {
     ear = earDefault;
@@ -436,7 +470,7 @@ class Thresholds {
     lowEyeConfidence = false;
     eyeSeparation = null;
     eyeProbThreshold = null;
-    _openEar = _closedEar = _yawnMar = _openProb = null;
+    _openEar = _openMar = _closedEar = _yawnMar = _openProb = _closedProb = null;
   }
 
   /// Restaura limiares salvos anteriormente.
@@ -472,9 +506,11 @@ class Thresholds {
     switch (step) {
       case 0:
         _openEar = medianEar;
+        _openMar = medianMar;
         _openProb = medianProb;
       case 1:
         _closedEar = medianEar;
+        _closedProb = medianProb;
         // Limiar a 28% do caminho entre "fechado" e "aberto" (margem de segurança
         // para que semicerrar os olhos ao rir não gere alerta).
         final open = _openEar;
@@ -506,48 +542,6 @@ class Thresholds {
         }
         marNeutral = clampD(medianMar * 0.95, marNeutralMin, marNeutralMax);
     }
-  }
-}
-
-/// Coleta amostras para uma etapa de calibração.
-class CalibrationSampler {
-  final List<double> _ears = [];
-  final List<double> _mars = [];
-  final List<double> _pitches = [];
-  final List<double> _rolls = [];
-  final List<double> _probs = [];
-  final List<double> _yaws = [];
-
-  void reset() {
-    _ears.clear();
-    _mars.clear();
-    _pitches.clear();
-    _rolls.clear();
-    _probs.clear();
-    _yaws.clear();
-  }
-
-  bool get done => _ears.length >= samplesPerStep;
-  int get progress => ((_ears.length / samplesPerStep) * 100).round().clamp(0, 100);
-  double get medianEar => median(_ears);
-  double get medianMar => median(_mars);
-  double? get medianPitch => _pitches.isEmpty ? null : median(_pitches);
-  double? get medianRoll => _rolls.isEmpty ? null : median(_rolls);
-  double? get medianProb => _probs.isEmpty ? null : median(_probs);
-  double? get medianYaw => _yaws.isEmpty ? null : median(_yaws);
-
-  /// Retorna `true` quando a etapa acabou de ser concluída neste quadro.
-  bool add(double ear, double mar, {double? pitch, double? roll, double? yaw, double? eyeProb}) {
-    if (done) return false;
-    if (yaw != null) _yaws.add(yaw);
-    _ears.add(ear);
-    _mars.add(mar);
-    if (eyeProb != null) _probs.add(eyeProb);
-    if (pitch != null && roll != null) {
-      _pitches.add(pitch);
-      _rolls.add(roll);
-    }
-    return done;
   }
 }
 
@@ -688,13 +682,18 @@ class FatigueEngine {
     // Movimento brusco: a imagem e os pontos do rosto ficam instáveis por um instante.
     if (pitch != null && yaw != null) {
       final lp = _lastPitchSample, ly = _lastYawSample;
-      if (lp != null && ly != null && now > _lastPoseTime) {
-        final speed = ((pitch - lp).abs() + (yaw - ly).abs()) * 1000 / (now - _lastPoseTime);
-        if (speed >= motionSpeedDegPerS) _motionUntil = now + motionHoldMs;
+      // Compara com uma amostra de pelo menos 150 ms atrás: entre quadros
+      // seguidos o tremor normal do detector (1–2°) pareceria movimento rápido.
+      final dt = now - _lastPoseTime;
+      if (lp == null || ly == null || dt >= motionWindowMs) {
+        if (lp != null && ly != null && dt <= 4 * motionWindowMs) {
+          final speed = ((pitch - lp).abs() + (yaw - ly).abs()) * 1000 / dt;
+          if (speed >= motionSpeedDegPerS) _motionUntil = now + motionHoldMs;
+        }
+        _lastPitchSample = pitch;
+        _lastYawSample = yaw;
+        _lastPoseTime = now;
       }
-      _lastPitchSample = pitch;
-      _lastYawSample = yaw;
-      _lastPoseTime = now;
     }
     final moving = now < _motionUntil;
     final lookingSide = yawDelta.abs() >= lookAwayYawDeg;

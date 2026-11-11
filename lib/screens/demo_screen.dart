@@ -44,7 +44,6 @@ class _DemoScreenState extends State<DemoScreen> {
   }
 
   void _recalibrate() {
-    vision.resetCalibration();
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => CalibrationScreen(vision: vision)));
   }
 

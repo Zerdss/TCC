@@ -11,6 +11,16 @@ Fluxo:
 - Calibração pessoal: olhos abertos, olhos fechados, bocejo e sorriso (opcional). Cada etapa
   começa com contagem 3‑2‑1 com bipes e termina com um "plim" + vibração; por padrão avança
   sozinha (dá para fazer a etapa de olhos fechados sem olhar para a tela).
+- **Calibração rígida** (`lib/vision/calibration.dart`): cada quadro só conta com o rosto
+  enquadrado, a cabeça parada (< 35°/s) e na mesma posição da 1ª etapa (±10°); piscadas são
+  descartadas. 80 quadros válidos por etapa, sem picos (filtro por desvio robusto). Cada etapa é
+  analisada: variação dos olhos abertos ≤ 12%, poucas piscadas, olho fechado ≥ 12% menor que o
+  aberto (ou probabilidade do ML Kit 0,4 menor), bocejo com MAR ≥ 0,63 e ≥ 2× a boca fechada,
+  sorriso identificado. Etapa reprovada é repetida (3 tentativas; olho fechado parecido com o
+  aberto permite "continuar com reforço"). No fim aparece a **análise do rosto** (posição do
+  celular, formato dos olhos × padrão, diferença entre os olhos, separação aberto × fechado,
+  bocejo, sorriso e confiança) e a calibração só é salva quando o usuário confirma; sair no meio
+  mantém a calibração anterior.
 - Lógica temporal: piscadas (0,08–0,4 s) não geram alerta; olhos fechados por 1,2 s
   ou bocejo sustentado por 1,8 s geram **ALERTA**; checagem cruzada EAR × MAR para
   sorriso/fala; histerese de 1 s para voltar ao normal.
