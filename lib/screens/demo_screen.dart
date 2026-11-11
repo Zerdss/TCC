@@ -400,27 +400,27 @@ class _Telemetry extends StatelessWidget {
             _Chip(
               icon: Icons.timer_outlined,
               color: m.closedMs > 0 ? AppColors.yellow : AppColors.muted,
-              text: 'Olhos fechados: ${(m.closedMs / 1000).toStringAsFixed(1)} s',
+              text: 'Olhos fechados: ${formatSeconds(m.closedMs)} s',
             ),
             if (s.headEnabled && m.faceVisible)
               _Chip(
                 icon: Icons.face_retouching_natural,
                 color: m.headDownMs > 0 ? AppColors.yellow : AppColors.muted,
                 text: m.headDownMs > 0
-                    ? 'Cabeça caída: ${(m.headDownMs / 1000).toStringAsFixed(1)} s'
+                    ? 'Cabeça caída: ${formatSeconds(m.headDownMs)} s'
                     : 'Cabeça: ${m.headPitch >= 0 ? '↓' : '↑'} ${m.headPitch.abs().round()}°',
               ),
             if (!m.faceVisible)
               _Chip(
                 icon: Icons.no_accounts_outlined,
                 color: AppColors.red,
-                text: 'Sem rosto: ${(m.faceMissingMs / 1000).toStringAsFixed(1)} s',
+                text: 'Sem rosto: ${formatSeconds(m.faceMissingMs)} s',
               ),
             if (m.mouthOpenMs > 0)
               _Chip(
                 icon: Icons.record_voice_over_outlined,
                 color: AppColors.blue,
-                text: 'Boca aberta: ${(m.mouthOpenMs / 1000).toStringAsFixed(1)} s',
+                text: 'Boca aberta: ${formatSeconds(m.mouthOpenMs)} s',
               ),
             if (vision.thresholds.phonePosition case final pos?)
               _Chip(
@@ -438,13 +438,13 @@ class _Telemetry extends StatelessWidget {
               _Chip(
                 icon: Icons.swap_horiz,
                 color: AppColors.blue,
-                text: 'Olhando para o lado: ${(m.lookAwayMs / 1000).toStringAsFixed(1)} s',
+                text: 'Olhando para o lado: ${formatSeconds(m.lookAwayMs)} s',
               ),
             if (m.lookingDown)
               _Chip(
                 icon: Icons.south,
                 color: AppColors.blue,
-                text: 'Olhando para baixo (olhos abertos): ${(m.lookAwayMs / 1000).toStringAsFixed(1)} s',
+                text: 'Olhando para baixo (olhos abertos): ${formatSeconds(m.lookAwayMs)} s',
               ),
             if (m.reinforced)
               const _Chip(
