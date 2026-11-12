@@ -4,7 +4,9 @@ import 'package:fatigue_guard/screens/home_screen.dart';
 import 'package:fatigue_guard/screens/settings_screen.dart';
 import 'package:fatigue_guard/theme.dart';
 import 'package:fatigue_guard/vision/vision_controller.dart';
+import 'package:fatigue_guard/vision/fatigue_engine.dart';
 import 'package:fatigue_guard/widgets/floating_view.dart';
+import 'package:fatigue_guard/widgets/light_mode_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -67,6 +69,23 @@ void main() {
     expect(find.text('Abra o app para monitorar'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.binding.setSurfaceSize(null);
+    await tester.pumpWidget(const SizedBox());
+    vision.dispose();
+  });
+
+  testWidgets('botão Dia / Noite / Automático troca o modo com um toque', (tester) async {
+    final vision = VisionController();
+    await tester.pumpWidget(MaterialApp(
+        theme: buildTheme(), home: Scaffold(body: LightModeSelector(vision: vision, compact: true))));
+    expect(find.text('Dia'), findsOneWidget);
+    expect(find.text('Auto'), findsOneWidget);
+    await tester.tap(find.text('Noite'));
+    await tester.pump();
+    expect(vision.settings.lightMode, LightMode.night);
+    expect(vision.nightActive, isTrue);
+    await tester.tap(find.text('Dia'));
+    await tester.pump();
+    expect(vision.settings.lightMode, LightMode.day);
     await tester.pumpWidget(const SizedBox());
     vision.dispose();
   });

@@ -62,7 +62,9 @@ class ExplanationScreen extends StatelessWidget {
               'Olhos fechados sozinhos só alertam se o detector separou bem olho aberto de fechado na '
               'calibração, e com o dobro do tempo. O bocejo continua igual.'),
       (Icons.nightlight_outlined, AppColors.blue, 'Modo noite (pouca luz)',
-          'O app mede o brilho da imagem. Quando fica escuro, a tela vira luz de apoio: a cada 20 s (ajustável) o '
+          'A pessoa escolhe, como o claro/escuro dos sites: Dia (padrão), Noite ou Automático (o app mede o brilho '
+              'da imagem e liga sozinho no escuro). Cada modo tem os seus próprios ajustes: mexer à noite não muda o '
+              'dia. No modo Noite a tela vira luz de apoio: a cada 20 s (ajustável) o '
               'brilho sobe devagar, fica alto por 3 s e desce devagar — sem clarão. Se nesse momento aparecer sinal '
               'de sono, a luz fica acesa até normalizar (até 15 s). No escuro os contornos dos olhos ficam '
               'imprecisos, então a decisão vai para a cabeça (como no modo inclinação), e o rosto sumir não gera '

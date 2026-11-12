@@ -21,12 +21,20 @@ class SettingsStore {
   static const _autoCal = 'settings.autoAdvanceCalibration';
   static const _reinforce = 'settings.forceReinforced';
   static const _floating = 'settings.floatingWindow';
-  static const _night = 'settings.nightMode';
+  static const _night = 'settings.lightMode';
   static const _nightPeriod = 'settings.nightPeriodMs';
   static const _nightMax = 'settings.nightMaxBrightness';
 
-  Future<StoredSettings> load() async {
-    final p = await SharedPreferences.getInstance();
+  /// Prefixo das chaves dos ajustes próprios do modo Noite.
+  static const nightPrefix = 'night.';
+
+  /// Já existem ajustes salvos com este prefixo?
+  Future<bool> hasProfile(String prefix) async =>
+      (await SharedPreferences.getInstance()).containsKey('$prefix$_eyesMs');
+
+  Future<StoredSettings> load({String prefix = ''}) async {
+    final raw = await SharedPreferences.getInstance();
+    final p = _Prefixed(raw, prefix);
     return StoredSettings(
       sound: p.getBool(_sound) ?? true,
       vibration: p.getBool(_vibration) ?? true,
@@ -45,14 +53,15 @@ class SettingsStore {
       autoAdvanceCalibration: p.getBool(_autoCal) ?? true,
       forceReinforced: p.getBool(_reinforce) ?? false,
       floatingWindow: p.getBool(_floating) ?? true,
-      nightMode: p.getBool(_night) ?? true,
+      lightMode: LightMode.values.firstWhere((m) => m.name == p.getString(_night), orElse: () => LightMode.day),
       nightPeriodMs: p.getInt(_nightPeriod) ?? 20000,
       nightMaxBrightness: p.getDouble(_nightMax) ?? 0.6,
     );
   }
 
-  Future<void> save({required bool sound, required bool vibration, required DetectionSettings detection}) async {
-    final p = await SharedPreferences.getInstance();
+  Future<void> save(
+      {required bool sound, required bool vibration, required DetectionSettings detection, String prefix = ''}) async {
+    final p = _Prefixed(await SharedPreferences.getInstance(), prefix);
     await p.setBool(_sound, sound);
     await p.setBool(_vibration, vibration);
     await p.setBool(_smile, detection.smileFilter);
@@ -70,7 +79,7 @@ class SettingsStore {
     await p.setBool(_autoCal, detection.autoAdvanceCalibration);
     await p.setBool(_reinforce, detection.forceReinforced);
     await p.setBool(_floating, detection.floatingWindow);
-    await p.setBool(_night, detection.nightMode);
+    await p.setString(_night, detection.lightMode.name);
     await p.setInt(_nightPeriod, detection.nightPeriodMs);
     await p.setDouble(_nightMax, detection.nightMaxBrightness);
   }
@@ -95,7 +104,7 @@ class StoredSettings {
     this.autoAdvanceCalibration = true,
     this.forceReinforced = false,
     this.floatingWindow = true,
-    this.nightMode = true,
+    this.lightMode = LightMode.day,
     this.nightPeriodMs = 20000,
     this.nightMaxBrightness = 0.6,
   });
@@ -117,7 +126,7 @@ class StoredSettings {
   final bool autoAdvanceCalibration;
   final bool forceReinforced;
   final bool floatingWindow;
-  final bool nightMode;
+  final LightMode lightMode;
   final int nightPeriodMs;
   final double nightMaxBrightness;
 
@@ -138,8 +147,24 @@ class StoredSettings {
       ..autoAdvanceCalibration = autoAdvanceCalibration
       ..forceReinforced = forceReinforced
       ..floatingWindow = floatingWindow
-      ..nightMode = nightMode
+      ..lightMode = lightMode
       ..nightPeriodMs = nightPeriodMs
       ..nightMaxBrightness = nightMaxBrightness;
   }
+}
+
+/// Acesso às preferências com um prefixo nas chaves (perfil do modo Noite).
+class _Prefixed {
+  _Prefixed(this.p, this.prefix);
+  final SharedPreferences p;
+  final String prefix;
+
+  bool? getBool(String k) => p.getBool('$prefix$k');
+  int? getInt(String k) => p.getInt('$prefix$k');
+  double? getDouble(String k) => p.getDouble('$prefix$k');
+  String? getString(String k) => p.getString('$prefix$k');
+  Future<bool> setBool(String k, bool v) => p.setBool('$prefix$k', v);
+  Future<bool> setInt(String k, int v) => p.setInt('$prefix$k', v);
+  Future<bool> setDouble(String k, double v) => p.setDouble('$prefix$k', v);
+  Future<bool> setString(String k, String v) => p.setString('$prefix$k', v);
 }

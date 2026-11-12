@@ -1,6 +1,9 @@
 import 'package:fatigue_guard/vision/fatigue_engine.dart';
+import 'package:fatigue_guard/vision/vision_controller.dart';
 import 'package:fatigue_guard/vision/night_mode.dart';
+import 'package:fatigue_guard/data/settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Roda a luz de apoio de [from] a [to] (passos de 100 ms) e devolve o nível por instante.
 Map<int, double> runLight(NightLight l, int from, int to, {bool dark = true, bool Function(int t)? suspicious}) {
@@ -106,6 +109,100 @@ void main() {
       }
       expect(m.alert, isFalse);
       expect(m.classify(e.settings).notice, contains('Pouca luz'));
+    });
+  });
+
+  group('escolha Dia / Noite / Automático', () {
+    test('padrão é Dia: o escuro não liga nada sozinho', () {
+      final v = VisionController();
+      expect(v.settings.lightMode, LightMode.day);
+      for (var t = 1; t <= 5000; t += 100) {
+        v.darkDetector.update(10, t);
+      }
+      expect(v.darkDetector.dark, isTrue);
+      expect(v.nightActive, isFalse);
+      v.dispose();
+    });
+
+    test('Noite escolhida pela pessoa vale mesmo sem medir o escuro', () {
+      final v = VisionController();
+      v.setLightMode(LightMode.night);
+      expect(v.nightActive, isTrue);
+      expect(v.engine.lowLight, isTrue);
+      expect(v.engine.tiltMode, isTrue);
+      v.setLightMode(LightMode.day);
+      expect(v.nightActive, isFalse);
+      expect(v.engine.lowLight, isFalse);
+      v.dispose();
+    });
+
+    test('Automático só liga com a imagem escura', () {
+      final v = VisionController();
+      v.setLightMode(LightMode.auto);
+      expect(v.nightActive, isFalse);
+      for (var t = 1; t <= 5000; t += 100) {
+        v.darkDetector.update(10, t);
+      }
+      expect(v.nightActive, isTrue);
+      v.dispose();
+    });
+  });
+
+  group('ajustes separados por modo', () {
+    test('no modo Noite os ajustes valem só para a noite; o Dia não muda', () {
+      final v = VisionController();
+      v.settings.eyesAlertMs = 1500; // ajuste do dia
+      v.setLightMode(LightMode.night);
+      expect(v.nightProfile, isTrue);
+      v.settings.eyesAlertMs = 2000; // ajuste da noite
+      v.settings.headDropDeg = 15;
+      v.setLightMode(LightMode.day);
+      expect(v.nightProfile, isFalse);
+      expect(v.settings.eyesAlertMs, 1500);
+      expect(v.settings.headDropDeg, headDropDefaultDeg);
+      v.setLightMode(LightMode.night);
+      expect(v.settings.eyesAlertMs, 2000);
+      expect(v.engine.settings.headDropDeg, 15); // o motor usa os ajustes da noite
+      v.dispose();
+    });
+
+    test('a escolha do modo e a luz de apoio são as mesmas nos dois perfis', () {
+      final v = VisionController();
+      v.setLightMode(LightMode.night);
+      v.settings.nightPeriodMs = 30000;
+      v.setLightMode(LightMode.day);
+      expect(v.settings.nightPeriodMs, 30000);
+      expect(v.settings.lightMode, LightMode.day);
+      v.dispose();
+    });
+
+    test('os dois perfis são salvos e carregados separadamente', () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = SettingsStore();
+      final v = VisionController(settingsStore: store);
+      v.settings.eyesAlertMs = 1400;
+      v.setLightMode(LightMode.night);
+      v.settings.eyesAlertMs = 2200;
+      await v.saveSettings();
+      v.dispose();
+
+      final v2 = VisionController(settingsStore: store);
+      await v2.loadPreferences();
+      expect(v2.settings.lightMode, LightMode.night);
+      expect(v2.nightProfile, isTrue);
+      expect(v2.settings.eyesAlertMs, 2200);
+      expect(v2.daySettings.eyesAlertMs, 1400);
+      v2.dispose();
+    });
+
+    test('restaurar o padrão no modo Noite não volta para o modo Dia', () async {
+      final v = VisionController();
+      v.setLightMode(LightMode.night);
+      v.settings.eyesAlertMs = 2500;
+      await v.resetSettings();
+      expect(v.settings.lightMode, LightMode.night);
+      expect(v.settings.eyesAlertMs, closedFatigueMs);
+      v.dispose();
     });
   });
 }

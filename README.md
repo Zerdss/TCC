@@ -47,8 +47,11 @@ Fluxo:
   Olhos fechados sozinhos só alertam se a probabilidade do ML Kit separou bem aberto × fechado na
   calibração, e com o dobro do tempo; piscadas e PERCLOS não geram aviso nesse modo. O bocejo segue
   igual.
-- **Modo noite (pouca luz)** (`lib/vision/night_mode.dart`): o app mede o brilho médio da imagem; abaixo
-  de 45/255 por 3 s conta como escuro (volta a claro acima de 65, histerese). No escuro, a tela do app
+- **Dia / Noite / Automático** (escolha da pessoa, como o claro/escuro dos sites; botão no painel ao vivo e
+  em Configurações; padrão Dia). **Cada modo tem os seus próprios ajustes** (sensibilidade, tempos, alertas):
+  mexer no modo Noite não muda o Dia. Salvos separados (chaves com prefixo `night.`).
+- **Modo noite (pouca luz)** (`lib/vision/night_mode.dart`): no Automático, o app mede o brilho médio da
+  imagem; abaixo de 45/255 por 3 s conta como escuro (volta a claro acima de 65, histerese). No modo noite, a tela do app
   vira luz de apoio: a cada 20 s (ajustável de 10 a 60 s) o brilho **sobe devagar** (1,5 s), fica no
   máximo (60%, ajustável) por 3 s e **desce devagar** — sem clarão. Se nesse momento houver sinal de sono
   com o rosto visível, a luz fica acesa até normalizar (no máximo 15 s). No escuro a decisão vai para a

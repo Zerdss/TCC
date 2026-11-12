@@ -5,6 +5,7 @@ import '../theme.dart';
 import '../vision/fatigue_engine.dart';
 import '../vision/vision_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/light_mode_selector.dart';
 import 'calibration_screen.dart';
 import 'history_screen.dart';
 
@@ -39,8 +40,9 @@ class SettingsScreen extends StatelessWidget {
     return ListenableBuilder(
       listenable: vision,
       builder: (context, _) {
-        final s = vision.settings;
+        final s = vision.settings; // ajustes do modo que está valendo (Dia ou Noite)
         final t = vision.thresholds;
+        final night = vision.nightProfile;
         return AppPage(
           showSettings: false,
           children: [
@@ -49,6 +51,31 @@ class SettingsScreen extends StatelessWidget {
               title: 'Configurações',
               subtitle: 'Personalize alertas, a tolerância ao sorriso e a sensibilidade da detecção. '
                   'Tudo fica salvo apenas neste aparelho.',
+            ),
+            const SizedBox(height: 12),
+            Container(
+              key: const Key('settings-profile'),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: (night ? AppColors.blue : AppColors.accent).withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: (night ? AppColors.blue : AppColors.accent).withValues(alpha: 0.5)),
+              ),
+              child: Row(children: [
+                Icon(night ? Icons.nightlight_outlined : Icons.wb_sunny_outlined,
+                    color: night ? AppColors.blue : AppColors.accentDark),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    night
+                        ? 'Você está ajustando o modo Noite. Estes ajustes valem só à noite; os do modo Dia '
+                            'continuam como estavam.'
+                        : 'Você está ajustando o modo Dia. Para ajustar a noite, escolha "Noite" em Dia e noite — '
+                            'a noite tem os seus próprios ajustes.',
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ]),
             ),
             const SizedBox(height: 24),
 
@@ -296,19 +323,23 @@ class SettingsScreen extends StatelessWidget {
             ]),
 
             // ------------------------------------------------------------ noite
-            const _SectionLabel(icon: Icons.nightlight_outlined, text: 'NOITE (POUCA LUZ)'),
+            const _SectionLabel(icon: Icons.nightlight_outlined, text: 'DIA E NOITE'),
             _Card(children: [
-              _SwitchRow(
-                icon: Icons.nightlight_round,
-                title: 'Modo noite automático',
-                subtitle: 'Quando a imagem fica escura, a tela do app vira luz de apoio: o brilho sobe devagar, '
-                    'fica alto por alguns segundos e desce devagar, sem clarão. Se aparecer sinal de sono, a luz '
-                    'fica acesa até normalizar. No escuro a decisão é pela cabeça. Funciona com o app aberto na tela.',
-                value: s.nightMode,
-                onChanged: (v) {
-                  s.nightMode = v;
-                  vision.saveSettings();
-                },
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Modo de iluminação', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Dia: como sempre. Noite: a tela do app vira luz de apoio — o brilho sobe devagar, fica alto '
+                    'por alguns segundos e desce devagar, sem clarão; com sinal de sono a luz fica acesa até '
+                    'normalizar, e a decisão é pela cabeça. Automático: o app liga o modo noite sozinho quando a '
+                    'imagem fica escura. Funciona com o app aberto na tela.',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 10),
+                  LightModeSelector(vision: vision),
+                ]),
               ),
               const Divider(height: 1),
               _SliderRow(
@@ -319,7 +350,7 @@ class SettingsScreen extends StatelessWidget {
                 min: 10000,
                 max: 60000,
                 divisions: 10,
-                enabled: s.nightMode,
+                enabled: s.lightMode != LightMode.day,
                 onChanged: (v) {
                   s.nightPeriodMs = v.round();
                   vision.refresh();
@@ -335,7 +366,7 @@ class SettingsScreen extends StatelessWidget {
                 min: 0.3,
                 max: 1.0,
                 divisions: 7,
-                enabled: s.nightMode,
+                enabled: s.lightMode != LightMode.day,
                 onChanged: (v) {
                   s.nightMaxBrightness = v;
                   vision.refresh();

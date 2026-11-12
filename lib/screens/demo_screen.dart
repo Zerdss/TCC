@@ -10,6 +10,7 @@ import '../vision/vision_controller.dart';
 import '../widgets/alert_overlay.dart';
 import '../widgets/camera_panel.dart';
 import '../widgets/common.dart';
+import '../widgets/light_mode_selector.dart';
 import 'calibration_screen.dart';
 import 'explanation_screen.dart';
 
@@ -162,6 +163,8 @@ class _DemoScreenState extends State<DemoScreen> {
                         flex: 6,
                         child: Column(children: [
                           status,
+                          const SizedBox(height: 10),
+                          LightModeSelector(vision: vision, compact: true),
                           telemetry,
                           const SizedBox(height: 16),
                           gpsButton,
@@ -176,6 +179,8 @@ class _DemoScreenState extends State<DemoScreen> {
                   const PageTitle(kicker: 'ETAPA 03 / 04 • AO VIVO', title: 'Painel de monitoramento'),
                   const SizedBox(height: 16),
                   status,
+                  const SizedBox(height: 10),
+                  LightModeSelector(vision: vision, compact: true),
                   const SizedBox(height: 12),
                   camera,
                   telemetry,
@@ -452,7 +457,7 @@ class _Telemetry extends StatelessWidget {
                 color: AppColors.blue,
                 text: vision.nightLit
                     ? 'Modo noite: luz de apoio ligada'
-                    : 'Modo noite: luz a cada ${vision.settings.nightPeriodMs ~/ 1000} s',
+                    : 'Modo noite${vision.settings.lightMode == LightMode.auto ? ' (automático)' : ''}: luz a cada ${vision.settings.nightPeriodMs ~/ 1000} s',
               ),
             if (m.tiltMode)
               const _Chip(

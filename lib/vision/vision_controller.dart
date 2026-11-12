@@ -102,7 +102,26 @@ class FramingGuide {
 /// salvo ou enviado pela rede.
 class VisionController extends ChangeNotifier {
   VisionController({this.database, this.calibrationStore, this.settingsStore})
-      : engine = FatigueEngine(Thresholds());
+      : engine = FatigueEngine(Thresholds()) {
+    daySettings = engine.settings;
+  }
+
+  /// Ajustes do modo Dia e do modo Noite: cada modo guarda os seus, e mexer
+  /// num não muda o outro. [settings] é sempre o do modo que está valendo.
+  late final DetectionSettings daySettings;
+  final DetectionSettings nightSettings = DetectionSettings();
+
+  /// Os ajustes em uso agora são os do modo Noite.
+  bool get nightProfile => identical(engine.settings, nightSettings);
+
+  /// Usa os ajustes do modo que está valendo (Noite ou Dia).
+  void _syncProfile() {
+    final target = nightActive ? nightSettings : daySettings;
+    if (identical(engine.settings, target)) return;
+    target.copyGlobalsFrom(engine.settings);
+    engine.settings = target;
+    _notify();
+  }
 
   /// Preferências do usuário (opcional).
   final SettingsStore? settingsStore;
@@ -344,8 +363,20 @@ class VisionController extends ChangeNotifier {
   /// A tela do app pode servir de luz (falso na janela flutuante / em segundo plano).
   bool screenLightAllowed = true;
 
-  /// Está escuro e o modo noite está ligado.
-  bool get nightActive => settings.nightMode && darkDetector.dark;
+  /// Modo noite valendo agora: escolhido "Noite", ou "Automático" com a imagem escura.
+  bool get nightActive =>
+      settings.lightMode == LightMode.night || (settings.lightMode == LightMode.auto && darkDetector.dark);
+
+  /// Troca Dia / Noite / Automático (botão do painel ou Configurações).
+  void setLightMode(LightMode mode) {
+    settings.lightMode = mode;
+    _syncProfile();
+    engine.lowLight = nightActive;
+    if (nightActive && _nightTimer == null) {
+      _nightTimer = Timer.periodic(const Duration(milliseconds: 100), (_) => _tickNight());
+    }
+    saveSettings();
+  }
 
   /// A luz de apoio está acesa agora.
   bool get nightLit => nightLight.lit;
@@ -356,6 +387,7 @@ class VisionController extends ChangeNotifier {
   void _onLuma(double luma, int now) {
     // Com a luz de apoio acesa a imagem clareia por causa dela: não conta.
     if (!nightLight.lit) darkDetector.update(luma, now);
+    _syncProfile();
     engine.lowLight = nightActive;
     if ((nightActive || nightLight.lit) && _nightTimer == null) {
       _nightTimer = Timer.periodic(const Duration(milliseconds: 100), (_) => _tickNight());
@@ -364,12 +396,12 @@ class VisionController extends ChangeNotifier {
 
   void _tickNight() {
     final now = _clock.elapsedMilliseconds + 1;
-    final allowed = settings.nightMode && isMonitoring && !backgroundFeed && screenLightAllowed;
+    final allowed = isMonitoring && !backgroundFeed && screenLightAllowed;
     nightLight.periodMs = settings.nightPeriodMs;
     final wasLit = nightLight.lit;
     // Suspeita de sono com o rosto visível: a luz fica acesa até normalizar.
     final suspicious = faceTracking && status != FatigueStatus.normal;
-    final level = nightLight.update(now, dark: allowed && darkDetector.dark, suspicious: suspicious);
+    final level = nightLight.update(now, dark: allowed && nightActive, suspicious: suspicious);
     if (!wasLit && nightLight.lit) {
       ScreenLight.instance.current().then((v) => _baseBrightness = v);
     }
@@ -379,7 +411,7 @@ class VisionController extends ChangeNotifier {
       ScreenLight.instance.set(base + level * (top - base));
     } else {
       ScreenLight.instance.restore();
-      if (!(allowed && darkDetector.dark)) {
+      if (!(allowed && nightActive)) {
         _nightTimer?.cancel();
         _nightTimer = null;
       }
@@ -651,7 +683,15 @@ class VisionController extends ChangeNotifier {
     if (stored != null) {
       soundEnabled = stored.sound;
       vibrationEnabled = stored.vibration;
-      stored.applyTo(settings);
+      stored.applyTo(daySettings);
+      final store = settingsStore!;
+      if (await store.hasProfile(SettingsStore.nightPrefix)) {
+        (await store.load(prefix: SettingsStore.nightPrefix)).applyTo(nightSettings);
+      } else {
+        nightSettings.copyFrom(daySettings); // a noite começa igual ao dia
+      }
+      nightSettings.copyGlobalsFrom(daySettings);
+      _syncProfile();
     }
     await loadSavedCalibration();
     _notify();
@@ -663,12 +703,19 @@ class VisionController extends ChangeNotifier {
   /// Salva as preferências e avisa a interface.
   Future<void> saveSettings() async {
     _notify();
-    await settingsStore?.save(sound: soundEnabled, vibration: vibrationEnabled, detection: settings);
+    final other = nightProfile ? daySettings : nightSettings;
+    other.copyGlobalsFrom(settings);
+    await settingsStore?.save(sound: soundEnabled, vibration: vibrationEnabled, detection: daySettings);
+    await settingsStore?.save(
+        sound: soundEnabled, vibration: vibrationEnabled, detection: nightSettings, prefix: SettingsStore.nightPrefix);
   }
 
   /// Restaura os ajustes de detecção, som e vibração para o padrão.
+  /// Só o modo que está valendo; a escolha Dia/Noite/Automático é mantida.
   Future<void> resetSettings() async {
+    final mode = settings.lightMode;
     settings.reset();
+    settings.lightMode = mode;
     soundEnabled = true;
     vibrationEnabled = true;
     await saveSettings();

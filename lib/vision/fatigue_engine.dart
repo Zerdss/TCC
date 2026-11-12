@@ -222,6 +222,18 @@ const int escalateAfterMs = 4000;
 /// etapa da calibração. A ~20 FPS, cerca de 4 s de leitura boa.
 const int samplesPerStep = 80;
 
+/// Escolha de iluminação: Dia (como sempre), Noite (luz de apoio e decisão pela
+/// cabeça) ou Automático (o app decide pela claridade da imagem).
+enum LightMode { day, night, auto }
+
+extension LightModeLabel on LightMode {
+  String get label => switch (this) {
+        LightMode.day => 'Dia',
+        LightMode.night => 'Noite',
+        LightMode.auto => 'Automático',
+      };
+}
+
 /// Ajustes do usuário (tela de Configurações). Os valores padrão são os
 /// validados no protótipo.
 class DetectionSettings {
@@ -272,8 +284,12 @@ class DetectionSettings {
   /// (Android), para usar junto com o GPS.
   bool floatingWindow = true;
 
-  /// Modo noite automático: com pouca luz, a tela vira luz de apoio em rampas.
-  bool nightMode = true;
+  /// Dia / Noite / Automático, escolhido pela pessoa (como o claro/escuro dos sites).
+  /// Noite: a tela vira luz de apoio em rampas e a decisão vai para a cabeça.
+  LightMode lightMode = LightMode.day;
+
+  /// O modo noite está ligado (Noite) ou pode ligar sozinho (Automático).
+  bool get nightMode => lightMode != LightMode.day;
 
   /// Intervalo entre as rampas de luz (ms) e brilho máximo da luz de apoio (0 a 1).
   int nightPeriodMs = 20000;
@@ -284,6 +300,34 @@ class DetectionSettings {
   int get mouthWarnMs => (yawnAlertMs * warnMouthMs / yawnMinMs).round();
   int get headWarnMs => (headAlertMs * 0.5).round();
   int get faceLostWarnMs => (faceLostAlertMs * 0.5).round();
+
+  /// Copia tudo de [o].
+  void copyFrom(DetectionSettings o) {
+    eyesAlertMs = o.eyesAlertMs;
+    yawnAlertMs = o.yawnAlertMs;
+    smileFilter = o.smileFilter;
+    blinkWarnRate = o.blinkWarnRate;
+    headEnabled = o.headEnabled;
+    headDropDeg = o.headDropDeg;
+    headAlertMs = o.headAlertMs;
+    faceLostEnabled = o.faceLostEnabled;
+    faceLostAlertMs = o.faceLostAlertMs;
+    fullScreenAlert = o.fullScreenAlert;
+    escalatingAlert = o.escalatingAlert;
+    forceReinforced = o.forceReinforced;
+    copyGlobalsFrom(o);
+  }
+
+  /// Copia só o que vale para os dois modos (dia e noite): a escolha do modo,
+  /// a tela, a calibração automática, a janela flutuante e a luz de apoio.
+  void copyGlobalsFrom(DetectionSettings o) {
+    lightMode = o.lightMode;
+    allowLandscape = o.allowLandscape;
+    autoAdvanceCalibration = o.autoAdvanceCalibration;
+    floatingWindow = o.floatingWindow;
+    nightPeriodMs = o.nightPeriodMs;
+    nightMaxBrightness = o.nightMaxBrightness;
+  }
 
   void reset() {
     eyesAlertMs = closedFatigueMs;
@@ -301,7 +345,7 @@ class DetectionSettings {
     autoAdvanceCalibration = true;
     forceReinforced = false;
     floatingWindow = true;
-    nightMode = true;
+    lightMode = LightMode.day;
     nightPeriodMs = 20000;
     nightMaxBrightness = 0.6;
   }
@@ -619,7 +663,8 @@ class FatigueEngine {
   FatigueEngine(this.thresholds, [DetectionSettings? settings]) : settings = settings ?? DetectionSettings();
 
   final Thresholds thresholds;
-  final DetectionSettings settings;
+  /// Ajustes em uso (o perfil do modo Dia ou do modo Noite).
+  DetectionSettings settings;
   final _earAvg = MovingAverage(smoothWindow);
   final _marAvg = MovingAverage(smoothWindow);
   final _perclos = PerclosWindow(60000);
