@@ -446,6 +446,14 @@ class _Telemetry extends StatelessWidget {
                 color: AppColors.blue,
                 text: 'Olhando para baixo (olhos abertos): ${formatSeconds(m.lookAwayMs)} s',
               ),
+            if (vision.nightActive)
+              _Chip(
+                icon: Icons.nightlight_outlined,
+                color: AppColors.blue,
+                text: vision.nightLit
+                    ? 'Modo noite: luz de apoio ligada'
+                    : 'Modo noite: luz a cada ${vision.settings.nightPeriodMs ~/ 1000} s',
+              ),
             if (m.tiltMode)
               const _Chip(
                 icon: Icons.screen_rotation_alt_outlined,

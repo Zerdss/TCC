@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 import 'dart:io';
 
@@ -16,6 +17,8 @@ import '../data/settings_store.dart';
 import 'calibration.dart';
 import 'fatigue_engine.dart';
 import 'metrics.dart';
+import 'night_mode.dart';
+import '../platform/screen_light.dart';
 
 enum EngineState { idle, loading, running, error }
 
@@ -332,6 +335,73 @@ class VisionController extends ChangeNotifier {
 
   bool get isMonitoring => calibrationStep == null && state == EngineState.running;
 
+  // ------------------------------------------------------------ modo noite
+  final DarkDetector darkDetector = DarkDetector();
+  final NightLight nightLight = NightLight();
+  Timer? _nightTimer;
+  double? _baseBrightness;
+
+  /// A tela do app pode servir de luz (falso na janela flutuante / em segundo plano).
+  bool screenLightAllowed = true;
+
+  /// Está escuro e o modo noite está ligado.
+  bool get nightActive => settings.nightMode && darkDetector.dark;
+
+  /// A luz de apoio está acesa agora.
+  bool get nightLit => nightLight.lit;
+
+  /// Brilho médio da imagem (0 a 255) do último quadro.
+  double? get imageLuma => darkDetector.luma;
+
+  void _onLuma(double luma, int now) {
+    // Com a luz de apoio acesa a imagem clareia por causa dela: não conta.
+    if (!nightLight.lit) darkDetector.update(luma, now);
+    engine.lowLight = nightActive;
+    if ((nightActive || nightLight.lit) && _nightTimer == null) {
+      _nightTimer = Timer.periodic(const Duration(milliseconds: 100), (_) => _tickNight());
+    }
+  }
+
+  void _tickNight() {
+    final now = _clock.elapsedMilliseconds + 1;
+    final allowed = settings.nightMode && isMonitoring && !backgroundFeed && screenLightAllowed;
+    nightLight.periodMs = settings.nightPeriodMs;
+    final wasLit = nightLight.lit;
+    // Suspeita de sono com o rosto visível: a luz fica acesa até normalizar.
+    final suspicious = faceTracking && status != FatigueStatus.normal;
+    final level = nightLight.update(now, dark: allowed && darkDetector.dark, suspicious: suspicious);
+    if (!wasLit && nightLight.lit) {
+      ScreenLight.instance.current().then((v) => _baseBrightness = v);
+    }
+    if (level > 0) {
+      final base = _baseBrightness ?? 0.3;
+      final top = math.max(base, settings.nightMaxBrightness);
+      ScreenLight.instance.set(base + level * (top - base));
+    } else {
+      ScreenLight.instance.restore();
+      if (!(allowed && darkDetector.dark)) {
+        _nightTimer?.cancel();
+        _nightTimer = null;
+      }
+    }
+    if (wasLit != nightLight.lit) _notify();
+  }
+
+  void _stopNight() {
+    _nightTimer?.cancel();
+    _nightTimer = null;
+    nightLight.reset();
+    ScreenLight.instance.restore();
+  }
+
+  double? _lumaOf(CameraImage image) {
+    if (image.planes.isEmpty) return null;
+    final bytes = image.planes.first.bytes;
+    if (image.format.group == ImageFormatGroup.bgra8888) return sampleLuma(bytes, offset: 1, stride: 4);
+    // NV21 num plano só: os primeiros largura×altura bytes são a luminância.
+    return sampleLuma(bytes, length: image.planes.length == 1 ? image.width * image.height : null);
+  }
+
   // ------------------------------------------------- indicador em segundo plano
   /// Os quadros vêm do serviço nativo (app em segundo plano, indicador flutuante).
   bool backgroundFeed = false;
@@ -379,6 +449,8 @@ class VisionController extends ChangeNotifier {
     final w = (m['w'] as num?)?.toDouble() ?? 0, h = (m['h'] as num?)?.toDouble() ?? 0;
     if (w <= 0 || h <= 0) return;
     final now = _clock.elapsedMilliseconds + 1;
+    final lum = m['lum'];
+    if (lum is num) _onLuma(lum.toDouble(), now);
     _handleInput(FaceInput.fromMap(m), Size(w, h), now);
     _fpsFrames++;
     if (now - _fpsStart >= 1000) {
@@ -390,6 +462,7 @@ class VisionController extends ChangeNotifier {
   }
 
   Future<void> stop() async {
+    _stopNight();
     await endSession();
     _watchdog?.cancel();
     _watchdog = null;
@@ -712,6 +785,8 @@ class VisionController extends ChangeNotifier {
     if (_busy || _detector == null || _description == null || _restarting) return;
     _busy = true;
     try {
+      final luma = _lumaOf(image);
+      if (luma != null) _onLuma(luma, _clock.elapsedMilliseconds + 1);
       final input = _toInputImage(image);
       if (input == null) {
         _frameFailed('formato ${image.format.group.name} (${image.format.raw}), '
@@ -1063,6 +1138,7 @@ class VisionController extends ChangeNotifier {
   @override
   void dispose() {
     _watchdog?.cancel();
+    _stopNight();
     endSession();
     _disposed = true;
     final controller = camera;

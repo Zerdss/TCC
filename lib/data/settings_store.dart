@@ -21,6 +21,9 @@ class SettingsStore {
   static const _autoCal = 'settings.autoAdvanceCalibration';
   static const _reinforce = 'settings.forceReinforced';
   static const _floating = 'settings.floatingWindow';
+  static const _night = 'settings.nightMode';
+  static const _nightPeriod = 'settings.nightPeriodMs';
+  static const _nightMax = 'settings.nightMaxBrightness';
 
   Future<StoredSettings> load() async {
     final p = await SharedPreferences.getInstance();
@@ -42,6 +45,9 @@ class SettingsStore {
       autoAdvanceCalibration: p.getBool(_autoCal) ?? true,
       forceReinforced: p.getBool(_reinforce) ?? false,
       floatingWindow: p.getBool(_floating) ?? true,
+      nightMode: p.getBool(_night) ?? true,
+      nightPeriodMs: p.getInt(_nightPeriod) ?? 20000,
+      nightMaxBrightness: p.getDouble(_nightMax) ?? 0.6,
     );
   }
 
@@ -64,6 +70,9 @@ class SettingsStore {
     await p.setBool(_autoCal, detection.autoAdvanceCalibration);
     await p.setBool(_reinforce, detection.forceReinforced);
     await p.setBool(_floating, detection.floatingWindow);
+    await p.setBool(_night, detection.nightMode);
+    await p.setInt(_nightPeriod, detection.nightPeriodMs);
+    await p.setDouble(_nightMax, detection.nightMaxBrightness);
   }
 }
 
@@ -86,6 +95,9 @@ class StoredSettings {
     this.autoAdvanceCalibration = true,
     this.forceReinforced = false,
     this.floatingWindow = true,
+    this.nightMode = true,
+    this.nightPeriodMs = 20000,
+    this.nightMaxBrightness = 0.6,
   });
 
   final bool sound;
@@ -105,6 +117,9 @@ class StoredSettings {
   final bool autoAdvanceCalibration;
   final bool forceReinforced;
   final bool floatingWindow;
+  final bool nightMode;
+  final int nightPeriodMs;
+  final double nightMaxBrightness;
 
   void applyTo(DetectionSettings d) {
     d
@@ -122,6 +137,9 @@ class StoredSettings {
       ..allowLandscape = allowLandscape
       ..autoAdvanceCalibration = autoAdvanceCalibration
       ..forceReinforced = forceReinforced
-      ..floatingWindow = floatingWindow;
+      ..floatingWindow = floatingWindow
+      ..nightMode = nightMode
+      ..nightPeriodMs = nightPeriodMs
+      ..nightMaxBrightness = nightMaxBrightness;
   }
 }

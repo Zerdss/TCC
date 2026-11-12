@@ -14,6 +14,7 @@ import android.provider.Settings
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Rational
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -48,6 +49,33 @@ class MainActivity : FlutterActivity() {
             }
         }
         registerAckReceiver()
+
+        // Modo noite: brilho da tela do app como luz de apoio (só nesta janela).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SCREEN_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setBrightness" -> {
+                    val v = (call.arguments as? Number)?.toFloat() ?: -1f
+                    val lp = window.attributes
+                    lp.screenBrightness = if (v < 0f) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE else v.coerceIn(0.01f, 1f)
+                    window.attributes = lp
+                    result.success(null)
+                }
+                "getBrightness" -> {
+                    val cur = window.attributes.screenBrightness
+                    if (cur >= 0f) {
+                        result.success(cur.toDouble())
+                    } else {
+                        val sys = try {
+                            Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS)
+                        } catch (_: Exception) {
+                            100
+                        }
+                        result.success((sys / 255.0).coerceIn(0.0, 1.0))
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
 
         // Indicador flutuante (bolinha) com a câmera num serviço em segundo plano.
         bubbleChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BUBBLE_CHANNEL).also { ch ->
@@ -192,6 +220,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL = "fatigue_guard/pip"
         private const val BUBBLE_CHANNEL = "fatigue_guard/bubble"
+        private const val SCREEN_CHANNEL = "fatigue_guard/screen"
         private const val ACTION_ACK = "br.tcc.fatigue_guard.ACK_ALERT"
     }
 }

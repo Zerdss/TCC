@@ -295,6 +295,55 @@ class SettingsScreen extends StatelessWidget {
               ),
             ]),
 
+            // ------------------------------------------------------------ noite
+            const _SectionLabel(icon: Icons.nightlight_outlined, text: 'NOITE (POUCA LUZ)'),
+            _Card(children: [
+              _SwitchRow(
+                icon: Icons.nightlight_round,
+                title: 'Modo noite automático',
+                subtitle: 'Quando a imagem fica escura, a tela do app vira luz de apoio: o brilho sobe devagar, '
+                    'fica alto por alguns segundos e desce devagar, sem clarão. Se aparecer sinal de sono, a luz '
+                    'fica acesa até normalizar. No escuro a decisão é pela cabeça. Funciona com o app aberto na tela.',
+                value: s.nightMode,
+                onChanged: (v) {
+                  s.nightMode = v;
+                  vision.saveSettings();
+                },
+              ),
+              const Divider(height: 1),
+              _SliderRow(
+                title: 'Intervalo da luz de apoio',
+                description: 'Tempo entre uma subida de brilho e a próxima.',
+                valueLabel: '${s.nightPeriodMs ~/ 1000} s',
+                value: s.nightPeriodMs.toDouble(),
+                min: 10000,
+                max: 60000,
+                divisions: 10,
+                enabled: s.nightMode,
+                onChanged: (v) {
+                  s.nightPeriodMs = v.round();
+                  vision.refresh();
+                },
+                onChangeEnd: (_) => vision.saveSettings(),
+              ),
+              const Divider(height: 1),
+              _SliderRow(
+                title: 'Brilho máximo da luz',
+                description: 'Mais brilho ilumina melhor o rosto, mas pode incomodar a vista à noite.',
+                valueLabel: '${(s.nightMaxBrightness * 100).round()}%',
+                value: s.nightMaxBrightness,
+                min: 0.3,
+                max: 1.0,
+                divisions: 7,
+                enabled: s.nightMode,
+                onChanged: (v) {
+                  s.nightMaxBrightness = v;
+                  vision.refresh();
+                },
+                onChangeEnd: (_) => vision.saveSettings(),
+              ),
+            ]),
+
             // ------------------------------------------------------------ sensibilidade
             const _SectionLabel(icon: Icons.tune, text: 'SENSIBILIDADE'),
             _Card(children: [

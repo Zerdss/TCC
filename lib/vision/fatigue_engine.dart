@@ -272,6 +272,13 @@ class DetectionSettings {
   /// (Android), para usar junto com o GPS.
   bool floatingWindow = true;
 
+  /// Modo noite automático: com pouca luz, a tela vira luz de apoio em rampas.
+  bool nightMode = true;
+
+  /// Intervalo entre as rampas de luz (ms) e brilho máximo da luz de apoio (0 a 1).
+  int nightPeriodMs = 20000;
+  double nightMaxBrightness = 0.6;
+
   /// ATENÇÃO aparece um pouco antes do alerta (mesma proporção do protótipo).
   int get eyesWarnMs => (eyesAlertMs * warnClosedMs / closedFatigueMs).round();
   int get mouthWarnMs => (yawnAlertMs * warnMouthMs / yawnMinMs).round();
@@ -294,6 +301,9 @@ class DetectionSettings {
     autoAdvanceCalibration = true;
     forceReinforced = false;
     floatingWindow = true;
+    nightMode = true;
+    nightPeriodMs = 20000;
+    nightMaxBrightness = 0.6;
   }
 }
 
@@ -337,6 +347,7 @@ class FatigueMetrics {
     this.tiltMode = false,
     this.nods = 0,
     this.nodAlert = false,
+    this.lowLight = false,
   });
 
   final double ear;
@@ -391,6 +402,9 @@ class FatigueMetrics {
   /// O alerta atual veio de cabeceio repetido.
   final bool nodAlert;
 
+  /// Pouca luz (modo noite): rosto sumido não gera alerta, só aviso.
+  final bool lowLight;
+
   final int lookAwayMs;
 
   bool get faceVisible => faceMissingMs == 0;
@@ -433,7 +447,7 @@ class FatigueMetrics {
       return (
         status: FatigueStatus.attention,
         notice: faceWarn
-            ? 'Rosto não detectado • olhe para a frente'
+            ? (lowLight ? 'Pouca luz • detecção limitada' : 'Rosto não detectado • olhe para a frente')
             : nodWarn
                 ? 'Cabeceio detectado • sinal de sono'
                 : headWarn
@@ -683,7 +697,9 @@ class FatigueEngine {
     _hdClosedMs = _hdOpenMs = _hdTotalMs = 0;
     _nodStart = 0;
     final missing = _lastFaceSeen == 0 ? 0 : now - _lastFaceSeen;
-    if (settings.faceLostEnabled && missing >= settings.faceLostAlertMs) _raise(AlertReason.faceLost, now);
+    if (settings.faceLostEnabled && !lowLight && missing >= settings.faceLostAlertMs) {
+      _raise(AlertReason.faceLost, now);
+    }
     return FatigueMetrics(
       ear: _lastEar,
       mar: _lastMar,
@@ -696,6 +712,7 @@ class FatigueEngine {
       reinforced: reinforced,
       tiltMode: tiltMode,
       nodAlert: _nodAlert && _alert,
+      lowLight: lowLight,
     );
   }
 
@@ -712,7 +729,11 @@ class FatigueEngine {
 
   /// Modo inclinação: celular abaixo do rosto (ou olhos pouco visíveis). O EAR
   /// engana visto de baixo, então a decisão passa a ser pela cabeça.
-  bool get tiltMode => reinforced || thresholds.phonePosition?.vertical == PhoneVertical.below;
+  bool get tiltMode => reinforced || lowLight || thresholds.phonePosition?.vertical == PhoneVertical.below;
+
+  /// Pouca luz (modo noite): os contornos dos olhos ficam imprecisos, então a
+  /// decisão vai para a cabeça; e o rosto sumir no escuro não é "rosto fora".
+  bool lowLight = false;
 
   /// Ângulo de queda da cabeça para alertar (menor no reforço / modo inclinação).
   double get effectiveHeadDropDeg =>
@@ -948,6 +969,7 @@ class FatigueEngine {
       tiltMode: tilt,
       nods: nods,
       nodAlert: _nodAlert && _alert,
+      lowLight: lowLight,
     );
   }
 }

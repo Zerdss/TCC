@@ -182,6 +182,7 @@ class BubbleService : Service(), LifecycleOwner {
             proxy.close()
             return
         }
+        val lum = meanLuma(proxy)
         val rotation = proxy.imageInfo.rotationDegrees
         val upright = rotation % 180 == 0
         val w = if (upright) proxy.width else proxy.height
@@ -189,12 +190,32 @@ class BubbleService : Service(), LifecycleOwner {
         det.process(InputImage.fromMediaImage(media, rotation))
             .addOnSuccessListener(executor) { faces ->
                 val frame = toMap(faces, w, h)
+                frame["lum"] = lum
                 main.post { if (running) sink?.invoke(frame) }
             }
             .addOnCompleteListener { proxy.close() }
     }
 
-    private fun toMap(faces: List<Face>, w: Int, h: Int): Map<String, Any?> {
+    /** Brilho médio (0 a 255) do plano Y, lendo só alguns pontos (modo noite). */
+    private fun meanLuma(proxy: ImageProxy): Double {
+        return try {
+            val buf = proxy.planes[0].buffer
+            val lim = buf.remaining()
+            var sum = 0L
+            var n = 0
+            var i = 0
+            while (i < lim) {
+                sum += (buf.get(i).toInt() and 0xFF)
+                n++
+                i += 97
+            }
+            if (n == 0) 0.0 else sum.toDouble() / n
+        } catch (_: Exception) {
+            0.0
+        }
+    }
+
+    private fun toMap(faces: List<Face>, w: Int, h: Int): HashMap<String, Any?> {
         val m = HashMap<String, Any?>()
         m["w"] = w.toDouble()
         m["h"] = h.toDouble()

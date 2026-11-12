@@ -120,6 +120,8 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
   }
 
   void _onFloating() {
+    // Na janela flutuante a tela não é do app: sem luz de apoio.
+    vision.screenLightAllowed = !floating.active;
     if (mounted) setState(() {});
     _syncFloating();
     // Fechou a janela flutuante (X): o app saiu da tela, então a câmera para.

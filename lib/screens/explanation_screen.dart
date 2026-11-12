@@ -61,6 +61,12 @@ class ExplanationScreen extends StatelessWidget {
               'alarme; 2 cabeceios mostram ATENÇÃO. Olhadas rápidas para baixo com o olho aberto não contam. '
               'Olhos fechados sozinhos só alertam se o detector separou bem olho aberto de fechado na '
               'calibração, e com o dobro do tempo. O bocejo continua igual.'),
+      (Icons.nightlight_outlined, AppColors.blue, 'Modo noite (pouca luz)',
+          'O app mede o brilho da imagem. Quando fica escuro, a tela vira luz de apoio: a cada 20 s (ajustável) o '
+              'brilho sobe devagar, fica alto por 3 s e desce devagar — sem clarão. Se nesse momento aparecer sinal '
+              'de sono, a luz fica acesa até normalizar (até 15 s). No escuro os contornos dos olhos ficam '
+              'imprecisos, então a decisão vai para a cabeça (como no modo inclinação), e o rosto sumir não gera '
+              'alarme de "rosto fora", só o aviso "Pouca luz". Funciona com o app aberto na tela.'),
       (Icons.shield_outlined, AppColors.yellow, 'Reforço com celular em ângulo ruim',
           'Visto muito de baixo, o olho parece achatado e o EAR fica pouco confiável. Se a calibração mostra '
               'olho aberto e fechado parecidos, o app liga um reforço: a inclinação da cabeça fica mais sensível '
