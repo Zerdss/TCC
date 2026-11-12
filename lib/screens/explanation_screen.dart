@@ -54,6 +54,13 @@ class ExplanationScreen extends StatelessWidget {
               'a cabeça "normal" é a sua posição real, não a de frente. Se o celular está bem abaixo/acima '
               '(25° ou mais) ou bem de lado (30° ou mais), o reforço liga sozinho. Mudou o celular de lugar? '
               'Calibre de novo.'),
+      (Icons.screen_rotation_alt_outlined, AppColors.yellow, 'Modo inclinação (celular abaixo do rosto)',
+          'Visto de baixo, o olho parece achatado e o app acharia que está fechado. Por isso, com o celular '
+              'abaixo do rosto, a decisão passa a ser pela cabeça: cabeça caída por 2 s (ou 1,2 s se os olhos '
+              'também parecerem fechados) e cabeceio — a cabeça cai e volta — 3 vezes em 1 minuto disparam o '
+              'alarme; 2 cabeceios mostram ATENÇÃO. Olhadas rápidas para baixo com o olho aberto não contam. '
+              'Olhos fechados sozinhos só alertam se o detector separou bem olho aberto de fechado na '
+              'calibração, e com o dobro do tempo. O bocejo continua igual.'),
       (Icons.shield_outlined, AppColors.yellow, 'Reforço com celular em ângulo ruim',
           'Visto muito de baixo, o olho parece achatado e o EAR fica pouco confiável. Se a calibração mostra '
               'olho aberto e fechado parecidos, o app liga um reforço: a inclinação da cabeça fica mais sensível '

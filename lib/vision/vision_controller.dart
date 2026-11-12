@@ -953,6 +953,10 @@ class VisionController extends ChangeNotifier {
     if (!centered) return const FramingGuide('Centralize o rosto no quadro', false);
     // Celular visto muito de baixo/cima ou de lado: os olhos aparecem achatados.
     if (pitch != null && pitch > cameraPitchWarnDeg) {
+      // Já calibrado nessa posição: o modo inclinação cuida disso, não precisa insistir.
+      if (thresholds.calibrated && engine.tiltMode && calibrationStep == null) {
+        return const FramingGuide('Celular abaixo do rosto • modo inclinação ligado', true);
+      }
       return const FramingGuide('Celular muito abaixo do rosto: suba-o se puder', false);
     }
     if (pitch != null && pitch < -cameraPitchWarnDeg) {

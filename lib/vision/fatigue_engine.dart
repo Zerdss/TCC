@@ -134,6 +134,10 @@ class PhonePosition {
       if (side) 'de lado, um olho aparece menor que o outro',
     ];
     final what = parts.join('; ');
+    if (vertical == PhoneVertical.below) {
+      return '${what[0].toUpperCase()}${what.substring(1)}. Modo inclinação ligado: o alarme vem da cabeça '
+          '(cabeça caída ou cabeceio repetido) e do bocejo; o olho achatado na imagem não dispara alarme.';
+    }
     return needsReinforcement
         ? '${what[0].toUpperCase()}${what.substring(1)}. Reforço ligado: a cabeça fica mais '
             'sensível e a boca segue igual. Os limites usam a sua calibração nesta posição.'
@@ -161,6 +165,28 @@ const int lookAwayWarnMs = 2500;
 
 /// Movimento brusco da cabeça (graus por segundo): a medição pausa um instante.
 const double motionSpeedDegPerS = 120;
+
+// ---------------------------------------------------------------------------
+// Modo inclinação (celular abaixo do rosto): o olho aparece achatado e o EAR
+// engana. A decisão passa a ser pela cabeça; os olhos só confirmam.
+// ---------------------------------------------------------------------------
+
+/// Cabeça caída por este tempo já é ALERTA no modo inclinação (sem depender dos olhos).
+const int tiltHeadAlertMs = 2000;
+
+/// Olhos fechados sozinhos só alertam no modo inclinação se a probabilidade do
+/// ML Kit separar bem aberto de fechado, e com este fator no tempo.
+const double tiltEyesTimeFactor = 2.0;
+
+/// Cabeceio: a cabeça cai pelo menos este ângulo e volta em 0,25–2,5 s.
+const double nodDropDeg = 10;
+const int nodMinMs = 250;
+const int nodMaxMs = 2500;
+const int nodWindowMs = 60000;
+
+/// Cabeceios no último minuto: 2 = ATENÇÃO, 3 = ALERTA.
+const int nodWarnCount = 2;
+const int nodAlertCount = 3;
 
 /// Janela para medir a velocidade da cabeça (evita confundir tremor com movimento).
 const int motionWindowMs = 150;
@@ -308,6 +334,9 @@ class FatigueMetrics {
     this.lookingSide = false,
     this.moving = false,
     this.lookAwayMs = 0,
+    this.tiltMode = false,
+    this.nods = 0,
+    this.nodAlert = false,
   });
 
   final double ear;
@@ -353,6 +382,15 @@ class FatigueMetrics {
   final bool moving;
 
   /// Há quanto tempo o motorista olha para baixo ou para o lado.
+  /// Modo inclinação ligado (celular abaixo do rosto): decide pela cabeça.
+  final bool tiltMode;
+
+  /// Cabeceios no último minuto (modo inclinação).
+  final int nods;
+
+  /// O alerta atual veio de cabeceio repetido.
+  final bool nodAlert;
+
   final int lookAwayMs;
 
   bool get faceVisible => faceMissingMs == 0;
@@ -367,7 +405,8 @@ class FatigueMetrics {
         status: FatigueStatus.alert,
         notice: switch (alertReason) {
           AlertReason.yawn => 'ALERTA: bocejo sustentado detectado',
-          AlertReason.head => 'ALERTA: cabeça caindo • possível cochilo',
+          AlertReason.head =>
+            nodAlert ? 'ALERTA: cabeceio repetido • possível cochilo' : 'ALERTA: cabeça caindo • possível cochilo',
           AlertReason.faceLost => 'ALERTA: rosto fora da câmera há mais de ${formatSeconds(cfg.faceLostAlertMs)} s',
           _ => 'ALERTA: olhos fechados por mais de ${formatSeconds(cfg.eyesAlertMs)} s',
         },
@@ -376,9 +415,11 @@ class FatigueMetrics {
     final faceWarn = cfg.faceLostEnabled && faceMissingMs >= cfg.faceLostWarnMs;
     final headWarnMs = reinforced ? (cfg.headWarnMs * reinforcedHeadTimeFactor).round() : cfg.headWarnMs;
     final headWarn = cfg.headEnabled && headDownMs >= headWarnMs;
-    final eyesWarn = closedMs >= cfg.eyesWarnMs && !expression;
+    // No modo inclinação os olhos (achatados na imagem) não geram aviso sozinhos.
+    final eyesWarn = !tiltMode && closedMs >= cfg.eyesWarnMs && !expression;
     final mouthWarn = mouthOpenMs >= cfg.mouthWarnMs;
-    final blinkWarn = blinkRate >= cfg.blinkWarnRate;
+    final blinkWarn = !tiltMode && blinkRate >= cfg.blinkWarnRate;
+    final nodWarn = tiltMode && nods >= nodWarnCount;
     final lookWarn = lookAwayMs >= lookAwayWarnMs;
     if (lookWarn && !headWarn && !eyesWarn) {
       return (
@@ -388,12 +429,14 @@ class FatigueMetrics {
             : 'Olhando para baixo • volte a atenção à estrada',
       );
     }
-    if (faceWarn || headWarn || eyesWarn || mouthWarn || blinkWarn) {
+    if (faceWarn || headWarn || eyesWarn || mouthWarn || blinkWarn || nodWarn) {
       return (
         status: FatigueStatus.attention,
         notice: faceWarn
             ? 'Rosto não detectado • olhe para a frente'
-            : headWarn
+            : nodWarn
+                ? 'Cabeceio detectado • sinal de sono'
+                : headWarn
                 ? 'Cabeça inclinada • mantenha a postura'
                 : eyesWarn
                     ? 'Fechamento longo dos olhos • mantenha a atenção'
@@ -591,6 +634,10 @@ class FatigueEngine {
   int _lastFrameTime = 0;
   // Tempo, durante a cabeça caída atual, com olhos fechados / claramente abertos.
   int _hdClosedMs = 0, _hdOpenMs = 0, _hdTotalMs = 0;
+  // Cabeceios (modo inclinação).
+  int _nodStart = 0, _nodOpenMs = 0, _nodTotalMs = 0;
+  final List<int> _nods = [];
+  bool _nodAlert = false;
 
   double _lastEar = 0, _lastMar = 0, _lastPerclos = 0;
 
@@ -604,6 +651,9 @@ class FatigueEngine {
     _lastPoseTime = _motionUntil = _lookAwaySince = _lastFrameTime = 0;
     _lastPitchSample = _lastYawSample = null;
     _hdClosedMs = _hdOpenMs = _hdTotalMs = 0;
+    _nodStart = 0;
+    _nods.clear();
+    _nodAlert = false;
     _alert = false;
     _reason = AlertReason.none;
   }
@@ -615,8 +665,9 @@ class FatigueEngine {
     if (yaw != null) baseYaw = yaw;
   }
 
-  void _raise(AlertReason reason, int now) {
+  void _raise(AlertReason reason, int now, {bool nod = false}) {
     if (!_alert) _alertSince = now;
+    _nodAlert = reason == AlertReason.head && (nod || (_alert && _nodAlert));
     _alert = true;
     _reason = reason;
     _normalSince = 0;
@@ -630,6 +681,7 @@ class FatigueEngine {
     _normalSince = 0;
     _lookAwaySince = 0;
     _hdClosedMs = _hdOpenMs = _hdTotalMs = 0;
+    _nodStart = 0;
     final missing = _lastFaceSeen == 0 ? 0 : now - _lastFaceSeen;
     if (settings.faceLostEnabled && missing >= settings.faceLostAlertMs) _raise(AlertReason.faceLost, now);
     return FatigueMetrics(
@@ -642,6 +694,8 @@ class FatigueEngine {
       alertReason: _reason,
       alertSinceMs: _alert ? now - _alertSince : 0,
       reinforced: reinforced,
+      tiltMode: tiltMode,
+      nodAlert: _nodAlert && _alert,
     );
   }
 
@@ -656,13 +710,17 @@ class FatigueEngine {
       settings.forceReinforced ||
       (thresholds.phonePosition?.needsReinforcement ?? false);
 
-  /// Ângulo de queda da cabeça para alertar (menor no modo de reforço).
-  double get effectiveHeadDropDeg =>
-      reinforced ? settings.headDropDeg * reinforcedHeadAngleFactor : settings.headDropDeg;
+  /// Modo inclinação: celular abaixo do rosto (ou olhos pouco visíveis). O EAR
+  /// engana visto de baixo, então a decisão passa a ser pela cabeça.
+  bool get tiltMode => reinforced || thresholds.phonePosition?.vertical == PhoneVertical.below;
 
-  /// Tempo com a cabeça caída para alertar (menor no modo de reforço).
+  /// Ângulo de queda da cabeça para alertar (menor no reforço / modo inclinação).
+  double get effectiveHeadDropDeg =>
+      tiltMode ? settings.headDropDeg * reinforcedHeadAngleFactor : settings.headDropDeg;
+
+  /// Tempo com a cabeça caída para alertar (menor no reforço / modo inclinação).
   int get effectiveHeadAlertMs =>
-      reinforced ? (settings.headAlertMs * reinforcedHeadTimeFactor).round() : settings.headAlertMs;
+      tiltMode ? (settings.headAlertMs * reinforcedHeadTimeFactor).round() : settings.headAlertMs;
 
   /// Processa um quadro já suavizado. [now] em ms (monotônico, > 0).
   /// [pitch] e [roll] são os ângulos da cabeça informados pelo detector
@@ -672,6 +730,7 @@ class FatigueEngine {
       {double? pitch, double? roll, double? yaw, double? smile, double? eyeProb}) {
     final t = thresholds;
     final boost = reinforced;
+    final tilt = tiltMode;
     final dt = _lastFrameTime == 0 ? 0 : math.min(now - _lastFrameTime, 200);
     _lastFrameTime = now;
     _lastFaceSeen = now;
@@ -779,7 +838,7 @@ class FatigueEngine {
       } else if (now - _headLastSeen > gapToleranceMs) {
         _headSince = 0;
         // Postura normal e olhos abertos: a referência acompanha devagar a posição do motorista.
-        if (!_alert && closedMs == 0 && headDrop.abs() < effectiveHeadDropDeg / 2 && !lookingSide) {
+        if (!_alert && (closedMs == 0 || tilt) && headDrop.abs() < effectiveHeadDropDeg / 2 && !lookingSide) {
           basePitch = basePitch! + 0.02 * (pitch - basePitch!);
           baseRoll = baseRoll! + 0.02 * (roll - baseRoll!);
           if (yaw != null && baseYaw != null) baseYaw = baseYaw! + 0.02 * (yaw - baseYaw!);
@@ -791,10 +850,37 @@ class FatigueEngine {
     final closedShare = _hdClosedMs / total, openShare = _hdOpenMs / total;
     // Cabeça baixa com os olhos abertos a maior parte do tempo = olhando para baixo.
     final lookingDown = headDown && headDownMs > 0 && openShare >= headOpenShare;
-    final headAlert = settings.headEnabled &&
-        !lookingDown &&
-        ((headDownMs >= effectiveHeadAlertMs && closedShare >= headClosedShare) ||
-            headDownMs >= 2 * effectiveHeadAlertMs);
+    final bool headAlert;
+    if (!settings.headEnabled || lookingDown) {
+      headAlert = false;
+    } else if (tilt) {
+      // Modo inclinação: a cabeça decide. Olhos fechados juntos só adiantam o alerta.
+      headAlert = headDownMs >= math.max(effectiveHeadAlertMs, tiltHeadAlertMs) ||
+          (headDownMs >= effectiveHeadAlertMs && closedShare >= 0.5);
+    } else {
+      headAlert = (headDownMs >= effectiveHeadAlertMs && closedShare >= headClosedShare) ||
+          headDownMs >= 2 * effectiveHeadAlertMs;
+    }
+
+    // ---- cabeceio (modo inclinação): a cabeça cai e volta rápido, várias vezes
+    if (tilt && pitch != null && settings.headEnabled) {
+      if (headDrop >= nodDropDeg && !lookingSide) {
+        if (_nodStart == 0) {
+          _nodStart = now;
+          _nodOpenMs = _nodTotalMs = 0;
+        }
+        _nodTotalMs += dt;
+        if (eyesOpenClear) _nodOpenMs += dt;
+      } else if (_nodStart != 0 && headDrop < nodDropDeg / 2) {
+        final d = now - _nodStart;
+        // Olhada rápida (rádio, câmbio): os olhos ficam abertos — não é cabeceio.
+        final glance = _nodTotalMs > 0 && _nodOpenMs / _nodTotalMs >= headOpenShare;
+        if (d >= nodMinMs && d <= nodMaxMs && !glance) _nods.add(now);
+        _nodStart = 0;
+      }
+    }
+    _nods.removeWhere((time) => now - time > nodWindowMs);
+    final nodAlert = tilt && _nods.length >= nodAlertCount;
 
     // ---- olhar fora da estrada (só aviso, nunca o alarme de sonolência)
     final lookingAway = lookingSide || lookingDown;
@@ -805,11 +891,27 @@ class FatigueEngine {
     }
     final lookAwayMs = _lookAwaySince != 0 ? now - _lookAwaySince : 0;
 
-    final drowsy = closedMs >= settings.eyesAlertMs;
-    if (drowsy || yawning || headAlert) {
-      _raise(drowsy ? AlertReason.eyes : headAlert ? AlertReason.head : AlertReason.yawn, now);
+    // Olhos fechados: no modo inclinação, só com a probabilidade do ML Kit bem
+    // calibrada e com o dobro do tempo (o EAR visto de baixo engana).
+    final drowsy = tilt
+        ? useProb && closedMs >= (settings.eyesAlertMs * tiltEyesTimeFactor).round()
+        : closedMs >= settings.eyesAlertMs;
+    final nods = _nods.length;
+    if (drowsy || yawning || headAlert || nodAlert) {
+      _raise(
+        drowsy
+            ? AlertReason.eyes
+            : headAlert || nodAlert
+                ? AlertReason.head
+                : AlertReason.yawn,
+        now,
+        nod: nodAlert && !headAlert && !drowsy,
+      );
+      if (nodAlert) _nods.clear(); // não repete o mesmo alerta
     } else if (_alert) {
-      final stable = !eyesClosedRaw && mar < t.mar && (!headDown || lookingDown);
+      // No modo inclinação o "olho fechado" visto de baixo não impede voltar ao normal.
+      final eyesOk = tilt ? !(useProb && eyesClosedRaw) : !eyesClosedRaw;
+      final stable = eyesOk && mar < t.mar && (!headDown || lookingDown);
       if (!stable) {
         _normalSince = 0;
       } else {
@@ -843,6 +945,9 @@ class FatigueEngine {
       moving: moving,
       lookAwayMs: lookAwayMs,
       headDownMs: lookingDown ? 0 : headDownMs,
+      tiltMode: tilt,
+      nods: nods,
+      nodAlert: _nodAlert && _alert,
     );
   }
 }

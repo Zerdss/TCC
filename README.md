@@ -39,6 +39,14 @@ Fluxo:
   (ou combinações). A posição aparece na calibração, no painel ao vivo e em Configurações; os
   limites e a posição "normal" da cabeça são os dessa posição. Bem abaixo/acima (≥ 25°) ou bem de
   lado (≥ 30°) → reforço automático. Mudou o celular de lugar: recalibrar.
+- **Modo inclinação (celular abaixo do rosto)**: visto de baixo, o olho parece achatado e o EAR
+  "acha" que ele está fechado. Com o celular abaixo do rosto (medido na calibração) ou olhos pouco
+  visíveis, a decisão passa a ser pela **cabeça**: cabeça caída por 2 s (1,2 s se os olhos também
+  parecerem fechados) ou **cabeceio** — a cabeça cai ≥ 10° e volta em 0,25–2,5 s — 3 vezes em
+  1 minuto → ALERTA; 2 cabeceios → ATENÇÃO. Olhadas rápidas para baixo com o olho aberto não contam.
+  Olhos fechados sozinhos só alertam se a probabilidade do ML Kit separou bem aberto × fechado na
+  calibração, e com o dobro do tempo; piscadas e PERCLOS não geram aviso nesse modo. O bocejo segue
+  igual.
 - **Modo de reforço (celular em ângulo ruim)**: se na calibração o EAR com olhos abertos e fechados
   ficar parecido (separação < 35%, ex.: celular muito abaixo do rosto), o app liga um reforço: a
   inclinação da cabeça fica mais sensível (75% do ângulo e 80% do tempo) e o olho fechado passa a ser

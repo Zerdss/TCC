@@ -241,8 +241,12 @@ void main() {
       final e = FatigueEngine(t);
       final ear = t.ear + 0.02; // o EAR sozinho diria "aberto"
       run(e, from: 1, to: 500, ear: ear, eyeProb: 0.95);
-      final m = run(e, from: 533, to: 2000, ear: ear, eyeProb: 0.05);
+      // modo inclinação: olho fechado sozinho precisa do dobro do tempo (2,4 s)
+      var m = run(e, from: 533, to: 2000, ear: ear, eyeProb: 0.05);
       expect(m.reinforced, isTrue);
+      expect(m.tiltMode, isTrue);
+      expect(m.alert, isFalse);
+      m = run(e, from: 2033, to: 3300, ear: ear, eyeProb: 0.05);
       expect(m.alertReason, AlertReason.eyes);
     });
 
@@ -370,6 +374,85 @@ void main() {
 
     test('sem calibração a posição é desconhecida', () {
       expect(Thresholds().phonePosition, isNull);
+    });
+  });
+
+  group('modo inclinação (celular abaixo do rosto)', () {
+    // Calibrado com o celular abaixo do rosto (rosto "olhando para cima" 20° na câmera).
+    FatigueEngine below() => FatigueEngine(Thresholds()
+      ..restore(ear: 0.19, mar: 0.6, marNeutral: 0.35, headPitch: 20, headRoll: 0, headYaw: 0))
+      ..setHeadBaseline(20, 0, 0);
+
+    test('liga sozinho com o celular abaixo do rosto', () {
+      expect(below().tiltMode, isTrue);
+      final front = FatigueEngine(Thresholds()
+        ..restore(ear: 0.19, mar: 0.6, marNeutral: 0.35, headPitch: 2, headRoll: 0, headYaw: 0));
+      expect(front.tiltMode, isFalse);
+    });
+
+    test('olho achatado na imagem (EAR baixo) não gera alarme nem aviso', () {
+      final e = below();
+      final m = run(e, from: 1, to: 6000, ear: 0.12, pitch: 20, roll: 0, yaw: 0);
+      expect(m.closedMs, greaterThan(5000)); // o EAR diria "fechado"...
+      expect(m.alert, isFalse); // ...mas no modo inclinação os olhos não decidem
+      expect(m.classify(e.settings).status, FatigueStatus.normal);
+    });
+
+    test('cabeça caída por 2 s é ALERTA, mesmo sem enxergar bem os olhos', () {
+      final e = below();
+      run(e, from: 1, to: 500, ear: 0.2, pitch: 20, roll: 0, yaw: 0);
+      var m = run(e, from: 533, to: 1900, ear: 0.2, pitch: 4, roll: 0, yaw: 0); // 16° por ~1,4 s
+      expect(m.alert, isFalse);
+      m = run(e, from: 1933, to: 2700, ear: 0.2, pitch: 4, roll: 0, yaw: 0); // > 2 s
+      expect(m.alertReason, AlertReason.head);
+    });
+
+    test('cabeça caindo com os olhos fechados alerta mais rápido (1,2 s)', () {
+      final e = below();
+      run(e, from: 1, to: 500, ear: 0.2, pitch: 20, roll: 0, yaw: 0);
+      final m = run(e, from: 533, to: 1900, ear: 0.08, pitch: 4, roll: 0, yaw: 0);
+      expect(m.alertReason, AlertReason.head);
+    });
+
+    FatigueMetrics nods(FatigueEngine e, int count, {required double ear, double? prob}) {
+      var t = 1;
+      for (var k = 0; k < count; k++) {
+        run(e, from: t, to: t + 1000, ear: ear, pitch: 20, roll: 0, yaw: 0, eyeProb: prob);
+        t += 1033;
+        run(e, from: t, to: t + 900, ear: ear, pitch: 5, roll: 0, yaw: 0, eyeProb: prob); // cai 15°
+        t += 933;
+      }
+      return run(e, from: t, to: t + 300, ear: ear, pitch: 20, roll: 0, yaw: 0, eyeProb: prob);
+    }
+
+    test('cabeceio: 2 no minuto = ATENÇÃO; 3 = ALERTA', () {
+      final e = below();
+      var m = nods(e, 2, ear: 0.14);
+      expect(m.nods, 2);
+      expect(m.alert, isFalse);
+      expect(m.classify(e.settings).notice, contains('Cabeceio'));
+
+      final e3 = below();
+      m = nods(e3, 3, ear: 0.14);
+      expect(m.alertReason, AlertReason.head);
+      expect(m.nodAlert, isTrue);
+      expect(m.classify(e3.settings).notice, contains('cabeceio repetido'));
+    });
+
+    test('olhadas rápidas para baixo com o olho aberto não contam como cabeceio', () {
+      final e = below();
+      final m = nods(e, 3, ear: 0.30, prob: 0.9);
+      expect(m.nods, 0);
+      expect(m.alert, isFalse);
+    });
+
+    test('o alerta termina quando a cabeça volta, mesmo com o olho achatado na imagem', () {
+      final e = below();
+      run(e, from: 1, to: 500, ear: 0.12, pitch: 20, roll: 0, yaw: 0);
+      var m = run(e, from: 533, to: 3000, ear: 0.12, pitch: 4, roll: 0, yaw: 0);
+      expect(m.alert, isTrue);
+      m = run(e, from: 3033, to: 4500, ear: 0.12, pitch: 20, roll: 0, yaw: 0);
+      expect(m.alert, isFalse);
     });
   });
 }

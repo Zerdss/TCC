@@ -446,11 +446,17 @@ class _Telemetry extends StatelessWidget {
                 color: AppColors.blue,
                 text: 'Olhando para baixo (olhos abertos): ${formatSeconds(m.lookAwayMs)} s',
               ),
-            if (m.reinforced)
+            if (m.tiltMode)
               const _Chip(
-                icon: Icons.shield_outlined,
+                icon: Icons.screen_rotation_alt_outlined,
                 color: AppColors.yellow,
-                text: 'Reforço ligado: cabeça e boca',
+                text: 'Modo inclinação: decide pela cabeça',
+              ),
+            if (m.tiltMode && m.nods > 0)
+              _Chip(
+                icon: Icons.south_outlined,
+                color: AppColors.yellow,
+                text: 'Cabeceios no último minuto: ${m.nods}',
               ),
             _Chip(icon: Icons.speed, color: AppColors.muted, text: '${vision.fps.toStringAsFixed(1)} FPS'),
           ],
@@ -479,7 +485,7 @@ class _Telemetry extends StatelessWidget {
             Text(
               'Alerta: olhos fechados por ${formatSeconds(s.eyesAlertMs)} s contínuos (piscadas de 0,08 a 0,4 s '
               'ignoradas), bocejo sustentado por ${formatSeconds(s.yawnAlertMs)} s'
-              '${s.headEnabled ? ', cabeça caída (${vision.engine.effectiveHeadDropDeg.round()}°) por ${formatSeconds(vision.engine.effectiveHeadAlertMs)} s${vision.engine.reinforced ? ' (reforço ligado)' : ''}' : ''}'
+              '${s.headEnabled ? ', cabeça caída (${vision.engine.effectiveHeadDropDeg.round()}°) por ${formatSeconds(vision.engine.effectiveHeadAlertMs)} s${vision.engine.tiltMode ? ' (modo inclinação: a cabeça decide, e 3 cabeceios no minuto também alertam)' : ''}' : ''}'
               '${s.faceLostEnabled ? ' ou rosto fora da câmera por ${formatSeconds(s.faceLostAlertMs)} s' : ''}. Média móvel de '
               '$smoothWindow quadros e histerese de 1,0 s para voltar ao normal. '
               'Olhar para o lado ou para baixo com os olhos abertos não dispara alarme (só ATENÇÃO após 2,5 s), '
