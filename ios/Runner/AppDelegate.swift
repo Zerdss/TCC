@@ -10,6 +10,11 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // Tela sempre ligada com o app aberto (de novo a cada vez que ele volta à frente).
+    application.isIdleTimerDisabled = true
+    NotificationCenter.default.addObserver(
+      forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+    ) { _ in UIApplication.shared.isIdleTimerDisabled = true }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

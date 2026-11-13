@@ -83,7 +83,7 @@ Fluxo:
 - Status em 3 níveis (NORMAL / ATENÇÃO / ALERTA DE SONOLÊNCIA) com **alerta progressivo**:
   tela cheia piscando, bipe e vibração; se continuar por 4 s, sirene rápida e vibração longa.
   Botão **"Estou acordado"** silencia por 10 s. O som toca no canal de alarme (Android) e
-  mesmo no modo silencioso (iPhone). Tela sempre ligada durante o monitoramento.
+  mesmo no modo silencioso (iPhone). **Tela sempre ligada** enquanto o app está aberto, em qualquer tela (`wakelock_plus` + `FLAG_KEEP_SCREEN_ON` no Android e `isIdleTimerDisabled` no iPhone, pedidos de novo a cada volta ao app).
 - **Junto com o GPS — indicador flutuante** (Android): durante o monitoramento, ao apertar
   "início" (ou no botão "Usar junto com o GPS"), aparece uma **bolinha** arrastável por cima do
   outro app (Maps, Waze...): um ponto **verde / amarelo / vermelho** (pisca no alerta) e o ícone de

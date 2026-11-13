@@ -177,6 +177,12 @@ class MainActivity : FlutterActivity() {
     }
 
     /** Android 8 a 11: entra na janela flutuante ao apertar "início" durante o monitoramento. */
+    /** Tela sempre ligada enquanto o app está visível (vale só para a janela do app). */
+    override fun onResume() {
+        super.onResume()
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         // Preferência: a bolinha (bem pequena). Sem a permissão, cai na janela flutuante.

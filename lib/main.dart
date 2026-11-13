@@ -52,16 +52,16 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
     settingsStore: SettingsStore(),
   );
   bool _resumeCamera = false;
-  bool _wakelock = false;
   bool? _landscape;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    vision.addListener(_syncWakelock);
+    vision.addListener(_syncOrientation);
     vision.addListener(_syncFloating);
     vision.loadPreferences();
+    _keepScreenOn();
     floating.onAcknowledge = vision.acknowledgeAlert;
     floating.addListener(_onFloating);
     floating.init();
@@ -131,9 +131,8 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
     }
   }
 
-  // Mantém a tela ligada enquanto a câmera estiver monitorando e aplica a
-  // opção "Permitir modo deitado" das Configurações.
-  void _syncWakelock() {
+  // Aplica a opção "Permitir modo deitado" das Configurações.
+  void _syncOrientation() {
     final landscape = vision.settings.allowLandscape;
     if (landscape != _landscape) {
       _landscape = landscape;
@@ -142,10 +141,12 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
         if (landscape) ...[DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight],
       ]);
     }
-    final enable = vision.state == EngineState.running;
-    if (enable == _wakelock) return;
-    _wakelock = enable;
-    WakelockPlus.toggle(enable: enable);
+  }
+
+  /// Tela sempre ligada enquanto o app está aberto (em qualquer tela, não só com
+  /// a câmera). Pedido de novo a cada volta ao app, porque o sistema pode soltar.
+  void _keepScreenOn() {
+    WakelockPlus.enable().catchError((_) {});
   }
 
   @override
@@ -164,6 +165,7 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
         vision.stop();
       }
     } else if (state == AppLifecycleState.resumed) {
+      _keepScreenOn();
       _refreshCanDraw();
       if (bubble.running || vision.backgroundFeed) {
         _returnFromBubble();
@@ -184,7 +186,7 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    vision.removeListener(_syncWakelock);
+    vision.removeListener(_syncOrientation);
     vision.removeListener(_syncFloating);
     floating.removeListener(_onFloating);
     bubble.removeListener(_onBubble);
