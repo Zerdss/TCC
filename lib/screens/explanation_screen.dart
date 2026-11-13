@@ -83,6 +83,15 @@ class ExplanationScreen extends StatelessWidget {
       (Icons.no_accounts_outlined, AppColors.red, 'Rosto fora da câmera',
           'Se o rosto some por 2 s aparece ATENÇÃO; por 4 s, ALERTA. Cobre a cabeça caída para fora do '
               'quadro e o celular mal posicionado.'),
+      (Icons.timer_outlined, AppColors.accent, 'A caminho do alerta',
+          'No painel ao vivo, cada regra tem uma barra que enche enquanto o sinal dura: olhos fechados, boca '
+              'aberta, cabeça caída e rosto fora da câmera. A marca no meio é onde começa o ATENÇÃO; a barra cheia '
+              'é o ALERTA. Se o sinal para antes (uma piscada, uma fala), a barra zera e nada acontece.'),
+      (Icons.record_voice_over_outlined, AppColors.accent, 'Teste guiado com voz',
+          'Uma voz pede cada comportamento do plano de validação — piscar, falar e sorrir (não devem alertar); '
+              'fechar os olhos, bocejar, cochilar com a cabeça caindo e sair da câmera (devem alertar). O app anota '
+              'sozinho se acertou e o tempo até o alerta e, no fim, mostra a matriz de confusão (VP, FN, FP, VN), '
+              'a sensibilidade e os alarmes falsos, com exportação em CSV.'),
       (Icons.campaign_outlined, AppColors.accent, 'Alerta progressivo',
           'O alerta começa com bipe, vibração e tela cheia piscando. Se continuar por mais de 4 s, vira '
               'sirene rápida com vibração longa. O botão "Estou acordado" silencia por 10 s.'),

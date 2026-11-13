@@ -64,6 +64,22 @@ Fluxo:
   medido pela probabilidade de olho aberto do ML Kit, quando ela separa bem aberto de fechado. A boca
   segue igual. O app também avisa quando o celular está muito abaixo, acima ou de lado do rosto.
   Pode ser ligado sempre em Configurações.
+- **"A caminho do alerta"** (painel ao vivo, `lib/widgets/alert_progress.dart`): uma barra por regra
+  (olhos fechados, bocejo, cabeça caída, rosto fora da câmera) enchendo em tempo real até o tempo que
+  dispara o ALERTA, com a marca do ATENÇÃO. Verde → amarelo → vermelho. No modo inclinação mostra os
+  cabeceios do último minuto (3 = alerta). Mostra na prática **como o sistema decide**.
+- **Teste guiado com voz** (botão "Teste guiado com voz (validação)" no painel,
+  `lib/screens/guided_test_screen.dart` + `lib/vision/guided_test.dart`): o app executa sozinho o
+  protocolo de validação (Tabela 3 do TCC). Uma voz em português (a leitura em voz alta do próprio
+  celular — `lib/platform/voice.dart`, escolhe a voz pt-BR de melhor qualidade que funcione sem
+  internet) pede cada comportamento: piscar, falar e sorrir (não devem alertar); fechar os olhos,
+  bocejar, cochilo com a cabeça caindo e sair da câmera (devem alertar). Antes de cada tentativa espera
+  o status voltar a NORMAL com o rosto visível; depois observa por uma janela de 5 a 8 s, anota se deu
+  alerta e o tempo até ele (inclui a reação da pessoa). **Rápido** = 12 tentativas (~3 min);
+  **Completo** = 40 (10 de cada normal e 5 de cada sinal de sono, ~10 min). No fim mostra
+  sensibilidade, alarmes falsos, tempo médio, acertos por comportamento e a **matriz de confusão**
+  (VP/FN/FP/VN, positivo = ALERTA), e exporta em CSV (um arquivo, `;` e vírgula decimal). Com a regra
+  da cabeça desligada, ou no modo noite (rosto sumir não alerta no escuro), esses itens saem do roteiro.
 - Status em 3 níveis (NORMAL / ATENÇÃO / ALERTA DE SONOLÊNCIA) com **alerta progressivo**:
   tela cheia piscando, bipe e vibração; se continuar por 4 s, sirene rápida e vibração longa.
   Botão **"Estou acordado"** silencia por 10 s. O som toca no canal de alarme (Android) e
@@ -174,19 +190,24 @@ lib/
     calibration_store.dart      limiares calibrados em shared_preferences
     settings_store.dart         ajustes da tela de Configurações
     csv_export.dart             exportação CSV
+  platform/
+    voice.dart                  voz em português (leitura em voz alta do celular)
   theme.dart                    paleta clara (verde quase branco) e tipografia
   vision/
     metrics.dart                EAR, MAR, média móvel, PERCLOS
     fatigue_engine.dart         limiares, calibração, máquina de estados temporal
+    guided_test.dart            roteiro do teste guiado, matriz de confusão e CSV
     vision_controller.dart      câmera + ML Kit → métricas → status/alertas
   widgets/
     camera_panel.dart           preview, malha facial, guia de enquadramento
     alert_overlay.dart          alerta em tela cheia ("Estou acordado")
+    alert_progress.dart         barras "a caminho do alerta"
     common.dart                 cabeçalho, botões, painéis
   screens/
     home_screen.dart  calibration_screen.dart  demo_screen.dart  explanation_screen.dart
     history_screen.dart         histórico, detalhes da sessão, exportar/apagar
     settings_screen.dart        configurações (alertas, sorriso, sensibilidade, tempos)
+    guided_test_screen.dart     teste guiado com voz (protocolo de validação)
 assets/
   fonts/                        Barlow Condensed + Manrope (licença OFL)
   sounds/alerta.wav             bipe do alerta

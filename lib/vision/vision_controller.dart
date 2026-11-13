@@ -1039,6 +1039,12 @@ class VisionController extends ChangeNotifier {
   /// O motorista tocou em "Estou acordado": silencia e esconde a tela cheia por 10 s.
   bool alertAcknowledged([int? now]) => (now ?? _clock.elapsedMilliseconds + 1) < _ackUntil;
 
+  /// Volta a tocar o alarme normalmente (usado entre as tentativas do teste guiado).
+  void resetAcknowledge() {
+    _ackUntil = 0;
+    _notify();
+  }
+
   void acknowledgeAlert() {
     _ackUntil = _clock.elapsedMilliseconds + 10000;
     _player?.stop();

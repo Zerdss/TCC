@@ -788,6 +788,18 @@ class FatigueEngine {
   int get effectiveHeadAlertMs =>
       tiltMode ? (settings.headAlertMs * reinforcedHeadTimeFactor).round() : settings.headAlertMs;
 
+  /// Tempo de olhos fechados que gera ALERTA, ou `null` quando os olhos sozinhos
+  /// não decidem (modo inclinação sem a probabilidade do ML Kit bem calibrada).
+  int? get eyesAlertLimitMs {
+    if (!tiltMode) return settings.eyesAlertMs;
+    final probOk = reinforced && thresholds.eyeProbThreshold != null;
+    return probOk ? (settings.eyesAlertMs * tiltEyesTimeFactor).round() : null;
+  }
+
+  /// Tempo de cabeça caída que gera ALERTA (de frente: com os olhos fechados).
+  int get headAlertLimitMs =>
+      tiltMode ? math.max(effectiveHeadAlertMs, tiltHeadAlertMs) : effectiveHeadAlertMs;
+
   /// Processa um quadro já suavizado. [now] em ms (monotônico, > 0).
   /// [pitch] e [roll] são os ângulos da cabeça informados pelo detector
   /// (pitch positivo = olhando para cima); [smile] e [eyeProb] são as

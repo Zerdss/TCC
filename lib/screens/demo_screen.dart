@@ -8,11 +8,13 @@ import '../theme.dart';
 import '../vision/fatigue_engine.dart';
 import '../vision/vision_controller.dart';
 import '../widgets/alert_overlay.dart';
+import '../widgets/alert_progress.dart';
 import '../widgets/camera_panel.dart';
 import '../widgets/common.dart';
 import '../widgets/light_mode_selector.dart';
 import 'calibration_screen.dart';
 import 'explanation_screen.dart';
+import 'guided_test_screen.dart';
 
 Color statusColor(FatigueStatus s) => switch (s) {
       FatigueStatus.normal => AppColors.green,
@@ -125,6 +127,17 @@ class _DemoScreenState extends State<DemoScreen> {
         label: const Text('Usar junto com o GPS'),
       ),
     );
+    final progress = AlertProgressPanel(vision: vision);
+    final guidedButton = SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        key: const Key('button-teste-guiado'),
+        onPressed: () => Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => GuidedTestScreen(vision: vision))),
+        icon: const Icon(Icons.record_voice_over_outlined, size: 18),
+        label: const Text('Teste guiado com voz (validação)'),
+      ),
+    );
     final buttons = Row(
       children: [
         Expanded(
@@ -165,11 +178,15 @@ class _DemoScreenState extends State<DemoScreen> {
                           status,
                           const SizedBox(height: 10),
                           LightModeSelector(vision: vision, compact: true),
+                          const SizedBox(height: 10),
+                          progress,
                           telemetry,
                           const SizedBox(height: 16),
                           gpsButton,
                           const SizedBox(height: 10),
                           buttons,
+                          const SizedBox(height: 10),
+                          guidedButton,
                         ]),
                       ),
                     ],
@@ -183,6 +200,8 @@ class _DemoScreenState extends State<DemoScreen> {
                   LightModeSelector(vision: vision, compact: true),
                   const SizedBox(height: 12),
                   camera,
+                  const SizedBox(height: 12),
+                  progress,
                   telemetry,
                   const SizedBox(height: 20),
                   const Divider(),
@@ -190,6 +209,8 @@ class _DemoScreenState extends State<DemoScreen> {
                   gpsButton,
                   const SizedBox(height: 10),
                   buttons,
+                  const SizedBox(height: 10),
+                  guidedButton,
                 ],
         ),
         Positioned.fill(child: FullScreenAlert(vision: vision)),
