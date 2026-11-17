@@ -40,21 +40,21 @@ const guidedBehaviors = [
   GuidedBehavior(
     id: 'piscar',
     label: 'Piscar normalmente',
-    instruction: 'Olhe para a câmera e pisque normalmente.',
+    instruction: 'Quando ouvir o sinal, olhe para a câmera e pisque normalmente.',
     expectAlert: false,
     windowMs: 5000,
   ),
   GuidedBehavior(
     id: 'falar',
     label: 'Falar e sorrir',
-    instruction: 'Fale uma frase qualquer e sorria.',
+    instruction: 'Quando ouvir o sinal, fale uma frase qualquer e sorria.',
     expectAlert: false,
     windowMs: 5000,
   ),
   GuidedBehavior(
     id: 'olhos',
     label: 'Fechar os olhos',
-    instruction: 'Feche os olhos agora e mantenha fechados até ouvir o alarme.',
+    instruction: 'Quando ouvir o sinal, feche os olhos e mantenha fechados até ouvir o alarme.',
     expectAlert: true,
     windowMs: 5000,
     backToNormal: 'Pode abrir os olhos.',
@@ -62,7 +62,7 @@ const guidedBehaviors = [
   GuidedBehavior(
     id: 'bocejo',
     label: 'Bocejar',
-    instruction: 'Abra bem a boca, como num bocejo, e segure.',
+    instruction: 'Quando ouvir o sinal, abra bem a boca, como num bocejo, e segure.',
     expectAlert: true,
     windowMs: 6000,
     backToNormal: 'Pode fechar a boca.',
@@ -70,7 +70,7 @@ const guidedBehaviors = [
   GuidedBehavior(
     id: 'cabeca',
     label: 'Cochilo com a cabeça caindo',
-    instruction: 'Feche os olhos e deixe a cabeça cair para a frente, como num cochilo.',
+    instruction: 'Quando ouvir o sinal, feche os olhos e deixe a cabeça cair para a frente, como num cochilo.',
     expectAlert: true,
     windowMs: 6000,
     backToNormal: 'Pode levantar a cabeça e abrir os olhos.',
@@ -78,7 +78,7 @@ const guidedBehaviors = [
   GuidedBehavior(
     id: 'rosto',
     label: 'Sair do enquadramento',
-    instruction: 'Saia da frente da câmera.',
+    instruction: 'Quando ouvir o sinal, saia da frente da câmera.',
     expectAlert: true,
     windowMs: 8000,
     backToNormal: 'Pode voltar para a frente da câmera.',
@@ -109,6 +109,7 @@ class GuidedTrialResult {
     required this.gotAlert,
     required this.gotAttention,
     this.timeToAlertMs,
+    this.early = false,
   });
 
   final GuidedBehavior behavior;
@@ -116,8 +117,13 @@ class GuidedTrialResult {
   final bool gotAlert;
   final bool gotAttention;
 
-  /// Do fim da instrução até o primeiro ALERTA (inclui a reação da pessoa).
+  /// Do sinal (bipe) até o primeiro ALERTA (inclui a reação da pessoa).
+  /// Fica vazio quando o alerta já estava tocando no sinal ([early]).
   final int? timeToAlertMs;
+
+  /// A pessoa começou antes do sinal: o alerta já estava ativo quando a
+  /// contagem começou. O acerto vale, mas o tempo não entra na média.
+  final bool early;
 
   bool get correct => behavior.expectAlert ? gotAlert : !gotAlert;
 
@@ -132,15 +138,23 @@ class GuidedTrial {
   final GuidedBehavior behavior;
   final int repetition;
   final int startMs;
-  bool gotAlert = false, gotAttention = false;
+  bool gotAlert = false, gotAttention = false, early = false;
   int? timeToAlertMs;
+  bool _first = true;
 
   /// Atualiza com o status atual. Retorna `true` quando a tentativa acabou.
   bool observe(int now, FatigueStatus status) {
+    final first = _first;
+    _first = false;
     if (status == FatigueStatus.attention) gotAttention = true;
     if (status == FatigueStatus.alert && !gotAlert) {
       gotAlert = true;
-      timeToAlertMs = now - startMs;
+      // Já em alerta na primeira leitura: começou antes do sinal, o tempo não vale.
+      if (first) {
+        early = true;
+      } else {
+        timeToAlertMs = now - startMs;
+      }
       // Sinal de sono detectado: não precisa esperar o resto da janela.
       if (behavior.expectAlert) return true;
     }
@@ -153,6 +167,7 @@ class GuidedTrial {
         gotAlert: gotAlert,
         gotAttention: gotAttention,
         timeToAlertMs: timeToAlertMs,
+        early: early,
       );
 }
 
@@ -184,6 +199,9 @@ class GuidedSummary {
   double? get falseAlarmRate => _ratio(fp, fp + vn);
 
   /// Avisos de ATENÇÃO em comportamentos normais (não são alarmes).
+  /// Tentativas em que a pessoa começou antes do sinal (tempo não conta).
+  int get earlyStarts => results.where((r) => r.early).length;
+
   int get attentionOnNormal => results.where((r) => !r.behavior.expectAlert && !r.gotAlert && r.gotAttention).length;
 
   List<GuidedRow> get rows => [
@@ -206,7 +224,7 @@ class GuidedSummary {
       ..writeln('Data;${at == null ? '' : '${at.day.toString().padLeft(2, '0')}/${at.month.toString().padLeft(2, '0')}/${at.year}'}')
       ..writeln('Pessoa;$person')
       ..writeln()
-      ..writeln('Nº;Comportamento;Repetição;Esperado;Deu alerta?;Deu atenção?;Tempo até o alerta (s);Matriz;Acertou?');
+      ..writeln('Nº;Comportamento;Repetição;Esperado;Deu alerta?;Deu atenção?;Tempo até o alerta (s);Começou antes do sinal?;Matriz;Acertou?');
     for (var i = 0; i < results.length; i++) {
       final r = results[i];
       b.writeln([
@@ -217,6 +235,7 @@ class GuidedSummary {
         r.gotAlert ? 'Sim' : 'Não',
         r.gotAttention ? 'Sim' : 'Não',
         r.timeToAlertMs == null ? '' : n(r.timeToAlertMs! / 1000),
+        r.early ? 'Sim' : 'Não',
         r.matrix,
         r.correct ? 'Sim' : 'Não',
       ].join(';'));
@@ -234,8 +253,10 @@ class GuidedSummary {
       ..writeln('Acurácia;${pct(accuracy)}')
       ..writeln('Taxa de falsos alarmes;${pct(falseAlarmRate)}')
       ..writeln('Avisos de atenção em comportamento normal;$attentionOnNormal')
+      ..writeln('Começou antes do sinal (fora do tempo médio);$earlyStarts')
       ..writeln()
-      ..writeln('Tempo até o alerta inclui o tempo de reação da pessoa à instrução.');
+      ..writeln('Tempo até o alerta: do sinal (bipe) até o ALERTA; inclui o tempo de reação da pessoa.')
+      ..writeln('Tentativas em que o alerta já estava ativo no sinal (começou antes) não entram no tempo médio.');
     return b.toString();
   }
 }

@@ -53,8 +53,8 @@ void main() {
 
   test('resumo calcula matriz de confusão e medidas', () {
     final results = [
-      _run('olhos', [(2200, FatigueStatus.alert)]),
-      _run('olhos', [(2600, FatigueStatus.alert)]),
+      _run('olhos', [(1050, FatigueStatus.normal), (2200, FatigueStatus.alert)]),
+      _run('olhos', [(1050, FatigueStatus.normal), (2600, FatigueStatus.alert)]),
       _run('bocejo', [(7000, FatigueStatus.normal)]), // FN
       _run('piscar', [(6000, FatigueStatus.normal)]), // VN
       _run('falar', [(2000, FatigueStatus.alert), (6000, FatigueStatus.normal)]), // FP
@@ -77,7 +77,7 @@ void main() {
     final csv = s.toCsv(at: DateTime(2026, 11, 13), person: 'Teste');
     expect(csv, contains('Data;13/11/2026'));
     expect(csv, contains('Pessoa;Teste'));
-    expect(csv, contains('1;Fechar os olhos;1;Alerta;Sim;Não;1,2;VP;Sim'));
+    expect(csv, contains('1;Fechar os olhos;1;Alerta;Sim;Não;1,2;Não;VP;Sim'));
     expect(csv, contains('Sensibilidade;67%'));
     expect(csv, contains('VN;2'));
   });
@@ -87,5 +87,28 @@ void main() {
     expect(s.sensitivity, isNull);
     expect(s.accuracy, isNull);
     expect(s.toCsv(), contains('Sensibilidade;-'));
+  });
+
+  test('começou antes do sinal: acerto vale, mas o tempo fica fora da média', () {
+    // Alerta já ativo na primeira leitura (a pessoa fechou os olhos durante a fala).
+    final early = GuidedTrial(_b('olhos'), 1, 1000);
+    expect(early.observe(1050, FatigueStatus.alert), isTrue);
+    expect(early.result.correct, isTrue);
+    expect(early.result.early, isTrue);
+    expect(early.result.timeToAlertMs, isNull);
+    final ok = _run('olhos', [(1050, FatigueStatus.normal), (2500, FatigueStatus.alert)]);
+    expect(ok.early, isFalse);
+    expect(ok.timeToAlertMs, 1500);
+    final s = GuidedSummary([early.result, ok]);
+    expect(s.sensitivity, 1.0);
+    expect(s.earlyStarts, 1);
+    expect(s.rows.single.avgTimeMs, 1500); // só a tentativa válida
+    expect(s.toCsv(), contains('Começou antes do sinal (fora do tempo médio);1'));
+  });
+
+  test('a voz pede para esperar o sinal em todas as instruções', () {
+    for (final b in guidedBehaviors) {
+      expect(b.instruction, startsWith('Quando ouvir o sinal'), reason: b.id);
+    }
   });
 }

@@ -74,8 +74,10 @@ Fluxo:
   celular — `lib/platform/voice.dart`, escolhe a voz pt-BR de melhor qualidade que funcione sem
   internet) pede cada comportamento: piscar, falar e sorrir (não devem alertar); fechar os olhos,
   bocejar, cochilo com a cabeça caindo e sair da câmera (devem alertar). Antes de cada tentativa espera
-  o status voltar a NORMAL com o rosto visível; depois observa por uma janela de 5 a 8 s, anota se deu
-  alerta e o tempo até ele (inclui a reação da pessoa). **Rápido** = 12 tentativas (~3 min);
+  o status voltar a NORMAL com o rosto visível; a voz diz "quando ouvir o sinal, ..." e a contagem começa
+  no bipe. Observa por uma janela de 5 a 8 s, anota se deu alerta e o tempo do bipe até ele (inclui a
+  reação da pessoa). Se o alerta já estava tocando no bipe (a pessoa começou antes), o acerto vale mas o
+  tempo fica fora da média (coluna "Começou antes do sinal?" no CSV). **Rápido** = 12 tentativas (~3 min);
   **Completo** = 40 (10 de cada normal e 5 de cada sinal de sono, ~10 min). No fim mostra
   sensibilidade, alarmes falsos, tempo médio, acertos por comportamento e a **matriz de confusão**
   (VP/FN/FP/VN, positivo = ALERTA), e exporta em CSV (um arquivo, `;` e vírgula decimal). Com a regra

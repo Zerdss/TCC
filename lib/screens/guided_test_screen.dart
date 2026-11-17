@@ -120,7 +120,11 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
       setState(() => _phase = trial.result.correct ? 'Acertou' : 'Errou');
       vision.playCue('ok');
       await Voice.instance.say(b.expectAlert
-          ? (trial.gotAlert ? b.backToNormal : 'O alerta não apareceu. ${b.backToNormal}')
+          ? (trial.early
+              ? '${b.backToNormal} Na próxima, espere o sinal para começar.'
+              : trial.gotAlert
+                  ? b.backToNormal
+                  : 'O alerta não apareceu. ${b.backToNormal}')
           : (trial.gotAlert ? 'Houve um alarme. Vamos continuar.' : 'Certo.'));
       if (!_alive(id)) return;
       vision.resetAcknowledge();
@@ -467,14 +471,15 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
           const SizedBox(height: 10),
           Text(
             'Especificidade ${pct(sum.specificity)} • Precisão ${pct(sum.precision)} • Acurácia ${pct(sum.accuracy)} • '
-            'Falsos alarmes ${pct(sum.falseAlarmRate)} • Avisos de atenção em normais: ${sum.attentionOnNormal}',
+            'Falsos alarmes ${pct(sum.falseAlarmRate)} • Avisos de atenção em normais: ${sum.attentionOnNormal}'
+            '${sum.earlyStarts > 0 ? ' • Começaram antes do sinal: ${sum.earlyStarts}' : ''}',
             style: const TextStyle(fontSize: 12, color: AppColors.textSoft),
           ),
         ]),
       ),
       const SizedBox(height: 10),
       const Text(
-        'O tempo até o alerta inclui a reação da pessoa à instrução. Teste encenado: é uma indicação, não a validação '
+        'O tempo até o alerta conta do sinal (bipe) e inclui a reação da pessoa. Teste encenado: é uma indicação, não a validação '
         'com voluntários.',
         style: TextStyle(fontSize: 11.5, color: AppColors.muted),
       ),
