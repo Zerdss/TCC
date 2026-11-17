@@ -59,9 +59,9 @@ class ExplanationScreen extends StatelessWidget {
               'abaixo do rosto, a decisão passa a ser pela cabeça: cabeça caída por 2 s (ou 1,2 s se os olhos '
               'também parecerem fechados) e cabeceio — a cabeça cai e volta — 3 vezes em 1 minuto disparam o '
               'alarme; 2 cabeceios mostram ATENÇÃO. Olhadas rápidas para baixo com o olho aberto não contam. '
-              'Olhos fechados também alertam, em 1,8 s: o app usa a probabilidade de olho aberto do ML Kit, '
-              'que engana menos que o formato do olho visto de baixo (sem ela calibrada, exige o formato e a '
-              'probabilidade dizendo "fechado" juntos). O bocejo continua igual.'),
+              'Olhos fechados também alertam, em 2,4 s, mas só quando o formato do olho e a probabilidade de olho '
+              'aberto do ML Kit dizem "fechado" juntos — olhar para a tela ou o olho achatado visto de baixo não '
+              'bastam. O bocejo continua igual.'),
       (Icons.nightlight_outlined, AppColors.blue, 'Modo noite (pouca luz)',
           'A pessoa escolhe, como o claro/escuro dos sites: Dia (padrão), Noite ou Automático (o app mede o brilho '
               'da imagem e liga sozinho no escuro). Cada modo tem os seus próprios ajustes: mexer à noite não muda o '

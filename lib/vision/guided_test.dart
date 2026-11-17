@@ -101,6 +101,15 @@ List<GuidedBehavior> guidedPlan(GuidedSize size) => [
         for (var i = 0; i < size.repsFor(b); i++) b,
     ];
 
+/// Motivo do alerta em português (tela e CSV).
+String alertReasonLabel(AlertReason? r) => switch (r) {
+      AlertReason.eyes => 'olhos fechados',
+      AlertReason.yawn => 'bocejo',
+      AlertReason.head => 'cabeça caindo',
+      AlertReason.faceLost => 'rosto fora da câmera',
+      _ => '',
+    };
+
 /// Resultado de uma tentativa.
 class GuidedTrialResult {
   const GuidedTrialResult({
@@ -110,6 +119,7 @@ class GuidedTrialResult {
     required this.gotAttention,
     this.timeToAlertMs,
     this.early = false,
+    this.alertReason,
   });
 
   final GuidedBehavior behavior;
@@ -124,6 +134,9 @@ class GuidedTrialResult {
   /// A pessoa começou antes do sinal: o alerta já estava ativo quando a
   /// contagem começou. O acerto vale, mas o tempo não entra na média.
   final bool early;
+
+  /// Qual regra disparou o primeiro ALERTA da tentativa (ajuda a achar alarmes falsos).
+  final AlertReason? alertReason;
 
   bool get correct => behavior.expectAlert ? gotAlert : !gotAlert;
 
@@ -140,15 +153,17 @@ class GuidedTrial {
   final int startMs;
   bool gotAlert = false, gotAttention = false, early = false;
   int? timeToAlertMs;
+  AlertReason? alertReason;
   bool _first = true;
 
   /// Atualiza com o status atual. Retorna `true` quando a tentativa acabou.
-  bool observe(int now, FatigueStatus status) {
+  bool observe(int now, FatigueStatus status, {AlertReason? reason}) {
     final first = _first;
     _first = false;
     if (status == FatigueStatus.attention) gotAttention = true;
     if (status == FatigueStatus.alert && !gotAlert) {
       gotAlert = true;
+      alertReason = reason;
       // Já em alerta na primeira leitura: começou antes do sinal, o tempo não vale.
       if (first) {
         early = true;
@@ -168,6 +183,7 @@ class GuidedTrial {
         gotAttention: gotAttention,
         timeToAlertMs: timeToAlertMs,
         early: early,
+        alertReason: alertReason,
       );
 }
 
@@ -199,6 +215,17 @@ class GuidedSummary {
   double? get falseAlarmRate => _ratio(fp, fp + vn);
 
   /// Avisos de ATENÇÃO em comportamentos normais (não são alarmes).
+  /// Motivos dos alarmes falsos (alerta em comportamento normal), com a contagem.
+  Map<String, int> get falseAlarmReasons {
+    final m = <String, int>{};
+    for (final r in results.where((r) => r.matrix == 'FP')) {
+      final k = alertReasonLabel(r.alertReason);
+      final key = k.isEmpty ? 'não identificado' : k;
+      m[key] = (m[key] ?? 0) + 1;
+    }
+    return m;
+  }
+
   /// Tentativas em que a pessoa começou antes do sinal (tempo não conta).
   int get earlyStarts => results.where((r) => r.early).length;
 
@@ -224,7 +251,7 @@ class GuidedSummary {
       ..writeln('Data;${at == null ? '' : '${at.day.toString().padLeft(2, '0')}/${at.month.toString().padLeft(2, '0')}/${at.year}'}')
       ..writeln('Pessoa;$person')
       ..writeln()
-      ..writeln('Nº;Comportamento;Repetição;Esperado;Deu alerta?;Deu atenção?;Tempo até o alerta (s);Começou antes do sinal?;Matriz;Acertou?');
+      ..writeln('Nº;Comportamento;Repetição;Esperado;Deu alerta?;Deu atenção?;Tempo até o alerta (s);Começou antes do sinal?;Motivo do alerta;Matriz;Acertou?');
     for (var i = 0; i < results.length; i++) {
       final r = results[i];
       b.writeln([
@@ -236,6 +263,7 @@ class GuidedSummary {
         r.gotAttention ? 'Sim' : 'Não',
         r.timeToAlertMs == null ? '' : n(r.timeToAlertMs! / 1000),
         r.early ? 'Sim' : 'Não',
+        alertReasonLabel(r.alertReason),
         r.matrix,
         r.correct ? 'Sim' : 'Não',
       ].join(';'));
@@ -254,6 +282,7 @@ class GuidedSummary {
       ..writeln('Taxa de falsos alarmes;${pct(falseAlarmRate)}')
       ..writeln('Avisos de atenção em comportamento normal;$attentionOnNormal')
       ..writeln('Começou antes do sinal (fora do tempo médio);$earlyStarts')
+      ..writeln('Motivos dos alarmes falsos;${falseAlarmReasons.entries.map((e) => '${e.key} (${e.value})').join(', ')}')
       ..writeln()
       ..writeln('Tempo até o alerta: do sinal (bipe) até o ALERTA; inclui o tempo de reação da pessoa.')
       ..writeln('Tentativas em que o alerta já estava ativo no sinal (começou antes) não entram no tempo médio.');

@@ -174,10 +174,9 @@ const double motionSpeedDegPerS = 120;
 /// Cabeça caída por este tempo já é ALERTA no modo inclinação (sem depender dos olhos).
 const int tiltHeadAlertMs = 2000;
 
-/// Modo inclinação: olhos fechados alertam com este fator no tempo (1,8 s no
-/// padrão), medidos pela probabilidade do ML Kit — que engana bem menos que o
-/// EAR visto de baixo.
-const double tiltEyesTimeFactor = 1.5;
+/// Modo inclinação: olhos fechados alertam com este fator no tempo (2,4 s no
+/// padrão), com o "fechado" confirmado pela probabilidade do ML Kit.
+const double tiltEyesTimeFactor = 2.0;
 
 /// Modo inclinação sem a probabilidade calibrada: o olho só conta como fechado
 /// com dupla confirmação — EAR abaixo do limite E probabilidade abaixo disto.
@@ -862,8 +861,12 @@ class FatigueEngine {
     if (!measurable) {
       eyesClosedRaw = false;
     } else if (useProb) {
-      // Reforço: probabilidade do ML Kit (mais exigente com a cabeça abaixada).
-      eyesClosedRaw = eyeProb < (headLowered ? probTh * 0.6 : probTh);
+      // Probabilidade do ML Kit (mais exigente com a cabeça abaixada).
+      final probClosed = eyeProb < (headLowered ? probTh * 0.6 : probTh);
+      // Reforço (olhos pouco visíveis na calibração): a probabilidade decide.
+      // Celular só abaixo do rosto: ela oscila (pálpebra vista de baixo, olhar
+      // para a tela), então precisa da confirmação do EAR também.
+      eyesClosedRaw = boost ? probClosed : probClosed && ear < (headLowered ? t.ear * lookDownEarFactor : t.ear);
     } else if (tilt) {
       // Visto de baixo o olho parece achatado: o EAR sozinho engana. Só conta
       // como fechado com dupla confirmação (EAR baixo E probabilidade baixa).
@@ -988,8 +991,8 @@ class FatigueEngine {
     }
     final lookAwayMs = _lookAwaySince != 0 ? now - _lookAwaySince : 0;
 
-    // Olhos fechados: no modo inclinação, com 1,5× o tempo (o "fechado" ali já
-    // vem da probabilidade do ML Kit ou da dupla confirmação).
+    // Olhos fechados: no modo inclinação, com o dobro do tempo (o "fechado" ali
+    // vem da probabilidade do ML Kit confirmada pelo EAR, ou do reforço).
     final drowsy = closedMs >= (tilt ? (settings.eyesAlertMs * tiltEyesTimeFactor).round() : settings.eyesAlertMs);
     final nods = _nods.length;
     if (drowsy || yawning || headAlert || nodAlert) {

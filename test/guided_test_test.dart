@@ -77,7 +77,7 @@ void main() {
     final csv = s.toCsv(at: DateTime(2026, 11, 13), person: 'Teste');
     expect(csv, contains('Data;13/11/2026'));
     expect(csv, contains('Pessoa;Teste'));
-    expect(csv, contains('1;Fechar os olhos;1;Alerta;Sim;Não;1,2;Não;VP;Sim'));
+    expect(csv, contains('1;Fechar os olhos;1;Alerta;Sim;Não;1,2;Não;;VP;Sim'));
     expect(csv, contains('Sensibilidade;67%'));
     expect(csv, contains('VN;2'));
   });
@@ -110,5 +110,19 @@ void main() {
     for (final b in guidedBehaviors) {
       expect(b.instruction, startsWith('Quando ouvir o sinal'), reason: b.id);
     }
+  });
+
+  test('registra o motivo do alerta e resume os motivos dos alarmes falsos', () {
+    final fp = GuidedTrial(_b('piscar'), 1, 1000);
+    fp.observe(1050, FatigueStatus.normal);
+    fp.observe(2000, FatigueStatus.alert, reason: AlertReason.eyes);
+    fp.observe(6000, FatigueStatus.normal);
+    expect(fp.result.matrix, 'FP');
+    expect(fp.result.alertReason, AlertReason.eyes);
+    final s = GuidedSummary([fp.result]);
+    expect(s.falseAlarmReasons, {'olhos fechados': 1});
+    final csv = s.toCsv();
+    expect(csv, contains(';olhos fechados;FP;Não'));
+    expect(csv, contains('Motivos dos alarmes falsos;olhos fechados (1)'));
   });
 }

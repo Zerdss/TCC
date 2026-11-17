@@ -162,7 +162,7 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
 
   Future<void> _observe(int id, GuidedTrial trial) async {
     while (_alive(id)) {
-      if (trial.observe(_now, vision.status)) return;
+      if (trial.observe(_now, vision.status, reason: vision.metrics.alertReason)) return;
       if (mounted) setState(() {});
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
@@ -480,7 +480,8 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
           Text(
             'Especificidade ${pct(sum.specificity)} • Precisão ${pct(sum.precision)} • Acurácia ${pct(sum.accuracy)} • '
             'Falsos alarmes ${pct(sum.falseAlarmRate)} • Avisos de atenção em normais: ${sum.attentionOnNormal}'
-            '${sum.earlyStarts > 0 ? ' • Começaram antes do sinal: ${sum.earlyStarts}' : ''}',
+            '${sum.earlyStarts > 0 ? ' • Começaram antes do sinal: ${sum.earlyStarts}' : ''}'
+            '${sum.fp > 0 ? ' • Alarmes falsos por: ${sum.falseAlarmReasons.entries.map((e) => '${e.key} (${e.value})').join(', ')}' : ''}',
             style: const TextStyle(fontSize: 12, color: AppColors.textSoft),
           ),
         ]),
