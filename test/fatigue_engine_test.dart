@@ -241,7 +241,7 @@ void main() {
       final e = FatigueEngine(t);
       final ear = t.ear + 0.02; // o EAR sozinho diria "aberto"
       run(e, from: 1, to: 500, ear: ear, eyeProb: 0.95);
-      // modo inclinação: olho fechado sozinho precisa do dobro do tempo (2,4 s)
+      // modo inclinação: olho fechado precisa de 1,5× o tempo (1,8 s)
       var m = run(e, from: 533, to: 2000, ear: ear, eyeProb: 0.05);
       expect(m.reinforced, isTrue);
       expect(m.tiltMode, isTrue);
@@ -393,8 +393,9 @@ void main() {
     test('olho achatado na imagem (EAR baixo) não gera alarme nem aviso', () {
       final e = below();
       final m = run(e, from: 1, to: 6000, ear: 0.12, pitch: 20, roll: 0, yaw: 0);
-      expect(m.closedMs, greaterThan(5000)); // o EAR diria "fechado"...
-      expect(m.alert, isFalse); // ...mas no modo inclinação os olhos não decidem
+      // O EAR diria "fechado", mas sem a confirmação da probabilidade não conta.
+      expect(m.closedMs, 0);
+      expect(m.alert, isFalse);
       expect(m.classify(e.settings).status, FatigueStatus.normal);
     });
 
@@ -453,6 +454,35 @@ void main() {
       expect(m.alert, isTrue);
       m = run(e, from: 3033, to: 4500, ear: 0.12, pitch: 20, roll: 0, yaw: 0);
       expect(m.alert, isFalse);
+    });
+
+    test('olho fechado (probabilidade calibrada) gera ALERTA em 1,8 s', () {
+      final t = Thresholds()
+        ..applyCalibration(0, 0.19, 0.05, medianProb: 0.9)
+        ..applyCalibration(1, 0.12, 0.05, medianProb: 0.1);
+      t.restore(ear: t.ear, mar: 0.6, marNeutral: 0.35, headPitch: 20, headRoll: 0, headYaw: 0,
+          eyeProbThreshold: t.eyeProbThreshold);
+      final e = FatigueEngine(t)..setHeadBaseline(20, 0, 0);
+      expect(e.tiltMode, isTrue);
+      expect(t.eyeProbThreshold, isNotNull);
+      run(e, from: 1, to: 500, ear: 0.19, pitch: 20, roll: 0, yaw: 0, eyeProb: 0.95);
+      var m = run(e, from: 533, to: 1900, ear: 0.19, pitch: 20, roll: 0, yaw: 0, eyeProb: 0.05);
+      expect(m.alert, isFalse);
+      expect(m.classify(e.settings).status, FatigueStatus.attention); // aviso antes
+      m = run(e, from: 1933, to: 2500, ear: 0.19, pitch: 20, roll: 0, yaw: 0, eyeProb: 0.05);
+      expect(m.alertReason, AlertReason.eyes);
+    });
+
+    test('sem probabilidade calibrada: precisa de EAR baixo E probabilidade baixa', () {
+      // EAR baixo mas probabilidade de "aberto": olho achatado na imagem, sem alarme.
+      var e = below();
+      var m = run(e, from: 1, to: 4000, ear: 0.12, pitch: 20, roll: 0, yaw: 0, eyeProb: 0.8);
+      expect(m.alert, isFalse);
+      // Os dois dizem "fechado": ALERTA em 1,8 s.
+      e = below();
+      run(e, from: 1, to: 500, ear: 0.22, pitch: 20, roll: 0, yaw: 0, eyeProb: 0.9);
+      m = run(e, from: 533, to: 2500, ear: 0.12, pitch: 20, roll: 0, yaw: 0, eyeProb: 0.1);
+      expect(m.alertReason, AlertReason.eyes);
     });
   });
 }

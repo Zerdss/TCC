@@ -174,9 +174,14 @@ const double motionSpeedDegPerS = 120;
 /// Cabeça caída por este tempo já é ALERTA no modo inclinação (sem depender dos olhos).
 const int tiltHeadAlertMs = 2000;
 
-/// Olhos fechados sozinhos só alertam no modo inclinação se a probabilidade do
-/// ML Kit separar bem aberto de fechado, e com este fator no tempo.
-const double tiltEyesTimeFactor = 2.0;
+/// Modo inclinação: olhos fechados alertam com este fator no tempo (1,8 s no
+/// padrão), medidos pela probabilidade do ML Kit — que engana bem menos que o
+/// EAR visto de baixo.
+const double tiltEyesTimeFactor = 1.5;
+
+/// Modo inclinação sem a probabilidade calibrada: o olho só conta como fechado
+/// com dupla confirmação — EAR abaixo do limite E probabilidade abaixo disto.
+const double tiltClosedProb = 0.3;
 
 /// Cabeceio: a cabeça cai pelo menos este ângulo e volta em 0,25–2,5 s.
 const double nodDropDeg = 10;
@@ -474,7 +479,8 @@ class FatigueMetrics {
     final headWarnMs = reinforced ? (cfg.headWarnMs * reinforcedHeadTimeFactor).round() : cfg.headWarnMs;
     final headWarn = cfg.headEnabled && headDownMs >= headWarnMs;
     // No modo inclinação os olhos (achatados na imagem) não geram aviso sozinhos.
-    final eyesWarn = !tiltMode && closedMs >= cfg.eyesWarnMs && !expression;
+    final eyesWarnMs = tiltMode ? (cfg.eyesWarnMs * tiltEyesTimeFactor).round() : cfg.eyesWarnMs;
+    final eyesWarn = closedMs >= eyesWarnMs && !expression;
     final mouthWarn = mouthOpenMs >= cfg.mouthWarnMs;
     final blinkWarn = !tiltMode && blinkRate >= cfg.blinkWarnRate;
     final nodWarn = tiltMode && nods >= nodWarnCount;
@@ -788,13 +794,9 @@ class FatigueEngine {
   int get effectiveHeadAlertMs =>
       tiltMode ? (settings.headAlertMs * reinforcedHeadTimeFactor).round() : settings.headAlertMs;
 
-  /// Tempo de olhos fechados que gera ALERTA, ou `null` quando os olhos sozinhos
-  /// não decidem (modo inclinação sem a probabilidade do ML Kit bem calibrada).
-  int? get eyesAlertLimitMs {
-    if (!tiltMode) return settings.eyesAlertMs;
-    final probOk = reinforced && thresholds.eyeProbThreshold != null;
-    return probOk ? (settings.eyesAlertMs * tiltEyesTimeFactor).round() : null;
-  }
+  /// Tempo de olhos fechados que gera ALERTA (maior no modo inclinação).
+  int? get eyesAlertLimitMs =>
+      tiltMode ? (settings.eyesAlertMs * tiltEyesTimeFactor).round() : settings.eyesAlertMs;
 
   /// Tempo de cabeça caída que gera ALERTA (de frente: com os olhos fechados).
   int get headAlertLimitMs =>
@@ -854,19 +856,36 @@ class FatigueEngine {
     // De lado ou em movimento, os olhos não são avaliados (contorno distorcido/instável).
     final measurable = !moving && !lookingSide;
     final probTh = t.eyeProbThreshold;
-    final useProb = boost && probTh != null && eyeProb != null;
+    // Celular abaixo do rosto (ou reforço): a probabilidade do ML Kit decide.
+    final useProb = (boost || tilt) && probTh != null && eyeProb != null;
     bool eyesClosedRaw;
     if (!measurable) {
       eyesClosedRaw = false;
     } else if (useProb) {
       // Reforço: probabilidade do ML Kit (mais exigente com a cabeça abaixada).
       eyesClosedRaw = eyeProb < (headLowered ? probTh * 0.6 : probTh);
+    } else if (tilt) {
+      // Visto de baixo o olho parece achatado: o EAR sozinho engana. Só conta
+      // como fechado com dupla confirmação (EAR baixo E probabilidade baixa).
+      eyesClosedRaw = eyeProb != null &&
+          eyeProb < tiltClosedProb &&
+          ear < (headLowered ? t.ear * lookDownEarFactor : t.ear);
     } else if (headLowered) {
       // Olhando para baixo as pálpebras descem: exige EAR bem baixo e, se houver,
       // a confirmação da probabilidade do ML Kit.
       eyesClosedRaw = ear < t.ear * lookDownEarFactor && (eyeProb == null || eyeProb < lookDownClosedProb);
     } else {
       eyesClosedRaw = ear < t.ear;
+    }
+    // Para confirmar a cabeça caindo vale a regra antiga (só o EAR, conferido pela
+    // probabilidade quando houver): a cabeça já é o sinal principal ali.
+    final bool eyesClosedForHead;
+    if (measurable && tilt && !useProb) {
+      eyesClosedForHead = headLowered
+          ? ear < t.ear * lookDownEarFactor && (eyeProb == null || eyeProb < lookDownClosedProb)
+          : ear < t.ear;
+    } else {
+      eyesClosedForHead = eyesClosedRaw;
     }
     final eyesOpenClear = measurable &&
         !eyesClosedRaw &&
@@ -911,7 +930,7 @@ class FatigueEngine {
         }
         _headLastSeen = now;
         _hdTotalMs += dt;
-        if (eyesClosedRaw) _hdClosedMs += dt;
+        if (eyesClosedForHead) _hdClosedMs += dt;
         if (eyesOpenClear) _hdOpenMs += dt;
       } else if (now - _headLastSeen > gapToleranceMs) {
         _headSince = 0;
@@ -969,11 +988,9 @@ class FatigueEngine {
     }
     final lookAwayMs = _lookAwaySince != 0 ? now - _lookAwaySince : 0;
 
-    // Olhos fechados: no modo inclinação, só com a probabilidade do ML Kit bem
-    // calibrada e com o dobro do tempo (o EAR visto de baixo engana).
-    final drowsy = tilt
-        ? useProb && closedMs >= (settings.eyesAlertMs * tiltEyesTimeFactor).round()
-        : closedMs >= settings.eyesAlertMs;
+    // Olhos fechados: no modo inclinação, com 1,5× o tempo (o "fechado" ali já
+    // vem da probabilidade do ML Kit ou da dupla confirmação).
+    final drowsy = closedMs >= (tilt ? (settings.eyesAlertMs * tiltEyesTimeFactor).round() : settings.eyesAlertMs);
     final nods = _nods.length;
     if (drowsy || yawning || headAlert || nodAlert) {
       _raise(
@@ -987,8 +1004,7 @@ class FatigueEngine {
       );
       if (nodAlert) _nods.clear(); // não repete o mesmo alerta
     } else if (_alert) {
-      // No modo inclinação o "olho fechado" visto de baixo não impede voltar ao normal.
-      final eyesOk = tilt ? !(useProb && eyesClosedRaw) : !eyesClosedRaw;
+      final eyesOk = !eyesClosedRaw;
       final stable = eyesOk && mar < t.mar && (!headDown || lookingDown);
       if (!stable) {
         _normalSince = 0;

@@ -44,8 +44,9 @@ Fluxo:
   visíveis, a decisão passa a ser pela **cabeça**: cabeça caída por 2 s (1,2 s se os olhos também
   parecerem fechados) ou **cabeceio** — a cabeça cai ≥ 10° e volta em 0,25–2,5 s — 3 vezes em
   1 minuto → ALERTA; 2 cabeceios → ATENÇÃO. Olhadas rápidas para baixo com o olho aberto não contam.
-  Olhos fechados sozinhos só alertam se a probabilidade do ML Kit separou bem aberto × fechado na
-  calibração, e com o dobro do tempo; piscadas e PERCLOS não geram aviso nesse modo. O bocejo segue
+  Olhos fechados também alertam, com 1,5× o tempo (1,8 s): o "fechado" vem da probabilidade de olho
+  aberto do ML Kit calibrada nessa posição; sem ela, exige EAR baixo E probabilidade < 0,3 juntos (o EAR
+  sozinho, visto de baixo, engana); piscadas e PERCLOS não geram aviso nesse modo. O bocejo segue
   igual.
 - **Dia / Noite / Automático** (escolha da pessoa, como o claro/escuro dos sites; botão no painel ao vivo e
   em Configurações; padrão Dia). **Cada modo tem os seus próprios ajustes** (sensibilidade, tempos, alertas):
