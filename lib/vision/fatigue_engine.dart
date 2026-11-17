@@ -28,6 +28,11 @@ const int yawnMinMs = 1800;
 /// Tolerância a perdas pontuais de tracking.
 const int gapToleranceMs = 150;
 
+/// Intervalo máximo entre dois quadros analisados. Acima disso (quadros sem o
+/// contorno dos olhos/boca, imagem travada), os cronômetros recomeçam: o app só
+/// conta o tempo que de fato observou, sem "pular" de 0 para 2 s.
+const int maxFrameGapMs = 600;
+
 /// Piscada saudável (0,08–0,40 s): conta como piscada, não como fadiga.
 const int blinkMinMs = 80;
 const int blinkMaxMs = 400;
@@ -810,6 +815,14 @@ class FatigueEngine {
     final t = thresholds;
     final boost = reinforced;
     final tilt = tiltMode;
+    // Tempo sem nenhum quadro analisado: não dá para saber o que aconteceu,
+    // então os cronômetros recomeçam (o alerta já ativo continua).
+    if (_lastFrameTime != 0 && now - _lastFrameTime > maxFrameGapMs) {
+      _closedSince = _mouthSince = _headSince = 0;
+      _hdClosedMs = _hdOpenMs = _hdTotalMs = 0;
+      _nodStart = 0;
+      _lookAwaySince = 0;
+    }
     final dt = _lastFrameTime == 0 ? 0 : math.min(now - _lastFrameTime, 200);
     _lastFrameTime = now;
     _lastFaceSeen = now;

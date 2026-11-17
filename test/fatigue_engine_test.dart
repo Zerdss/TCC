@@ -497,4 +497,27 @@ void main() {
       expect(m.alertReason, AlertReason.eyes);
     });
   });
+
+  test('quadros sem análise (contorno sumiu): a cabeça caída não pula de 0 para 2 s', () {
+    final e = FatigueEngine(Thresholds()
+      ..restore(ear: 0.19, mar: 0.6, marNeutral: 0.35, headPitch: 2, headRoll: 0, headYaw: 0))
+      ..setHeadBaseline(2, 0, 0);
+    run(e, from: 1, to: 500, ear: 0.25, pitch: 2, roll: 0, yaw: 0);
+    // Cochilo: cabeça começa a cair com os olhos fechados.
+    var m = run(e, from: 533, to: 700, ear: 0.10, pitch: -22, roll: 0, yaw: 0);
+    expect(m.headDownMs, lessThan(300));
+    // 2,5 s sem nenhum quadro analisado (o detector perdeu o contorno dos olhos).
+    m = run(e, from: 3200, to: 3300, ear: 0.10, pitch: -22, roll: 0, yaw: 0);
+    expect(m.headDownMs, lessThan(300)); // recomeçou a contar, sem o tempo "às cegas"
+    expect(m.alert, isFalse);
+  });
+
+  test('olhos: o tempo sem análise também não conta como olho fechado', () {
+    final e = FatigueEngine(Thresholds()..restore(ear: 0.19, mar: 0.6, marNeutral: 0.35));
+    run(e, from: 1, to: 500, ear: 0.25);
+    run(e, from: 533, to: 700, ear: 0.10); // fecha
+    final m = run(e, from: 2500, to: 2600, ear: 0.10); // volta depois de 1,8 s sem quadros
+    expect(m.closedMs, lessThan(300));
+    expect(m.alert, isFalse);
+  });
 }
