@@ -65,6 +65,7 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
   void dispose() {
     _runId++;
     Voice.instance.stop();
+    Voice.instance.restoreVolume();
     vision.resetAcknowledge();
     vision.releaseCamera();
     _person.dispose();
@@ -89,6 +90,7 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
       _phase = 'Preparando';
       _instruction = 'Olhe para a câmera.';
     });
+    await Voice.instance.raiseVolume(); // a voz sai pelo volume de mídia: sobe e devolve no fim
     await Voice.instance.say('Vamos começar o teste guiado. Olhe para a câmera e siga as minhas instruções.');
     final reps = <String, int>{};
     for (var i = 0; i < _plan.length; i++) {
@@ -134,6 +136,7 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
     final sum = GuidedSummary(_results);
     final correct = _results.where((r) => r.correct).length;
     await Voice.instance.say('Teste concluído. O aplicativo acertou $correct de ${sum.total} tentativas.');
+    if (_alive(id)) await Voice.instance.restoreVolume();
   }
 
   /// Espera o status ficar NORMAL com o rosto visível por 1 s seguido.
@@ -166,6 +169,7 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
     _runId++;
     _trial = null;
     Voice.instance.stop();
+    Voice.instance.restoreVolume();
     vision.resetAcknowledge();
     setState(() => _stage = _results.isEmpty ? _Stage.intro : _Stage.done);
   }
@@ -213,7 +217,8 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
           const Text('Como funciona', style: AppText.h3),
           const SizedBox(height: 8),
           for (final t in [
-            'Deixe o celular apoiado à frente, como no carro, e aumente o volume: a voz dá as instruções.',
+            'Deixe o celular apoiado à frente, como no carro: a voz dá as instruções. No Android, o app sobe o volume '
+                'durante o teste e devolve no fim; no iPhone, aumente o volume antes.',
             'Faça cada comportamento quando a voz pedir. O app anota sozinho se acertou e o tempo até o alerta.',
             'Comportamentos normais (piscar, falar, sorrir) não devem gerar alerta; sinais de sono devem.',
             'No final aparecem a matriz de confusão e as medidas, e dá para exportar em CSV.',

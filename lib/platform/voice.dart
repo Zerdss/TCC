@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 /// Voz natural em português, usando a leitura em voz alta do próprio celular
@@ -89,6 +90,30 @@ class Voice {
       await tts.stop();
       // Limite de segurança: se o celular não avisar o fim da fala, segue mesmo assim.
       await tts.speak(text).timeout(Duration(milliseconds: 3000 + 120 * text.length), onTimeout: () => null);
+    } catch (_) {}
+  }
+
+  static const _audio = MethodChannel('fatigue_guard/screen');
+  int? _savedVolume;
+
+  /// Android: a voz sai pelo volume de MÍDIA, que muitas vezes está baixo (o
+  /// alarme usa o volume de alarme). Sobe a mídia para [fraction] do máximo
+  /// enquanto o teste fala; [restoreVolume] devolve o volume da pessoa.
+  /// No iPhone o app não pode mudar o volume: só pede para aumentar.
+  Future<void> raiseVolume([double fraction = 0.9]) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      final prev = await _audio.invokeMethod<int>('raiseMediaVolume', fraction);
+      if (prev != null && prev >= 0) _savedVolume ??= prev;
+    } catch (_) {}
+  }
+
+  Future<void> restoreVolume() async {
+    final v = _savedVolume;
+    _savedVolume = null;
+    if (v == null) return;
+    try {
+      await _audio.invokeMethod('setMediaVolume', v);
     } catch (_) {}
   }
 

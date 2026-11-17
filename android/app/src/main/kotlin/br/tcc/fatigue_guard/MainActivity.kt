@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.media.AudioManager
 import android.net.Uri
 import android.provider.Settings
 import android.graphics.drawable.Icon
@@ -72,6 +73,35 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success((sys / 255.0).coerceIn(0.0, 1.0))
                     }
+                }
+                // Teste guiado: a voz sai pelo volume de mídia, que costuma estar baixo
+                // (o alarme usa o volume de alarme). Sobe a mídia e devolve depois.
+                "raiseMediaVolume" -> {
+                    val frac = (call.arguments as? Number)?.toDouble() ?: 0.9
+                    val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    val cur = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    val target = Math.ceil(max * frac.coerceIn(0.0, 1.0)).toInt().coerceAtMost(max)
+                    if (cur < target) {
+                        try {
+                            am.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+                            result.success(cur) // volume anterior, para devolver no fim
+                        } catch (_: Exception) {
+                            result.success(-1)
+                        }
+                    } else {
+                        result.success(-1) // já estava alto: nada a devolver
+                    }
+                }
+                "setMediaVolume" -> {
+                    val idx = (call.arguments as? Number)?.toInt() ?: -1
+                    if (idx >= 0) {
+                        try {
+                            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                            am.setStreamVolume(AudioManager.STREAM_MUSIC, idx, 0)
+                        } catch (_: Exception) {}
+                    }
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }
