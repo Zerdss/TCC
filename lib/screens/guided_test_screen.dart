@@ -105,8 +105,12 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
         _instruction = b.instruction;
         _phase = 'Volte à posição normal';
       });
-      if (!await _waitNormal(id, 6000) && _alive(id)) {
-        // Ainda em alerta ou sem rosto: pede para voltar antes de começar.
+      // Cada tentativa começa do zero: sem o aviso de "cabeceio" ou de "piscadas
+      // frequentes" que sobrou da tentativa anterior (eles olham o último minuto).
+      vision.engine.clearRecentHistory();
+      if (!await _waitNormal(id, 6000) && _alive(id) &&
+          (vision.status == FatigueStatus.alert || !vision.faceTracking)) {
+        // Só pede para voltar se o alarme ainda toca ou o rosto não aparece.
         await Voice.instance.say('Volte para a posição normal, olhando para a câmera.');
         await _waitNormal(id, 12000);
       }
@@ -114,6 +118,7 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
       setState(() => _phase = 'Ouça a instrução');
       await Voice.instance.say(b.instruction);
       if (!_alive(id)) return;
+      vision.engine.clearRecentHistory();
       vision.playCue('tick');
       final trial = _trial = GuidedTrial(b, rep, _now);
       setState(() => _phase = 'Observando');

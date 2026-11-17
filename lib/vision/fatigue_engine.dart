@@ -727,6 +727,18 @@ class FatigueEngine {
     _reason = AlertReason.none;
   }
 
+  /// Zera as contagens do último minuto (piscadas, cabeceios e PERCLOS) sem
+  /// mexer num alerta em andamento. Usado entre as tentativas do teste guiado:
+  /// cada tentativa começa do zero, sem o aviso "Cabeceio" ou "Piscadas
+  /// frequentes" que sobrou da tentativa anterior.
+  void clearRecentHistory() {
+    _perclos.reset();
+    _blinks.clear();
+    _nods.clear();
+    _nodStart = 0;
+    _lastPerclos = 0;
+  }
+
   /// Define a posição normal da cabeça (ex.: mediana da etapa "olhos abertos").
   void setHeadBaseline(double pitch, double roll, [double? yaw]) {
     basePitch = pitch;

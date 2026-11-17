@@ -440,6 +440,16 @@ void main() {
       expect(m.classify(e3.settings).notice, contains('cabeceio repetido'));
     });
 
+    test('entre tentativas do teste guiado, o aviso de cabeceio que sobrou é zerado', () {
+      final e = below();
+      var m = nods(e, 2, ear: 0.14);
+      expect(m.classify(e.settings).status, FatigueStatus.attention); // "Cabeceio detectado"
+      e.clearRecentHistory();
+      m = run(e, from: 9000, to: 9300, ear: 0.2, pitch: 20, roll: 0, yaw: 0);
+      expect(m.nods, 0);
+      expect(m.classify(e.settings).status, FatigueStatus.normal);
+    });
+
     test('olhadas rápidas para baixo com o olho aberto não contam como cabeceio', () {
       final e = below();
       final m = nods(e, 3, ear: 0.30, prob: 0.9);
