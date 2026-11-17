@@ -58,6 +58,8 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
       _stage = _Stage.done;
     }
     if (vision.calibrationStep != null) vision.beginMonitoring();
+    // Mesmo detector do painel, mas fora do histórico de direção.
+    vision.setGuidedTest(true);
     vision.acquireCamera();
   }
 
@@ -67,6 +69,7 @@ class _GuidedTestScreenState extends State<GuidedTestScreen> {
     Voice.instance.stop();
     Voice.instance.restoreVolume();
     vision.resetAcknowledge();
+    vision.setGuidedTest(false);
     vision.releaseCamera();
     _person.dispose();
     super.dispose();

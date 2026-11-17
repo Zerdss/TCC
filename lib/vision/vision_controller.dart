@@ -354,6 +354,21 @@ class VisionController extends ChangeNotifier {
 
   bool get isMonitoring => calibrationStep == null && state == EngineState.running;
 
+  /// Teste guiado em andamento: usa o mesmo detector e as mesmas regras do
+  /// painel (é isso que o teste mede), mas não grava sessão no histórico nem
+  /// abre o indicador flutuante, porque não é direção de verdade.
+  bool get guidedTestActive => _guidedTest;
+  bool _guidedTest = false;
+
+  Future<void> setGuidedTest(bool active) async {
+    if (active == _guidedTest) return;
+    // Fecha a sessão que estava aberta: o que veio antes do teste fica salvo
+    // separado, e uma sessão nova começa quando o teste acabar.
+    await endSession();
+    _guidedTest = active;
+    _notify();
+  }
+
   // ------------------------------------------------------------ modo noite
   final DarkDetector darkDetector = DarkDetector();
   final NightLight nightLight = NightLight();
@@ -1001,15 +1016,18 @@ class VisionController extends ChangeNotifier {
     status = result.status;
     notice = result.notice;
 
-    // Histórico: a sessão começa no primeiro quadro de monitoramento.
+    // Histórico: a sessão começa no primeiro quadro de monitoramento
+    // (o teste guiado não entra no histórico).
     final wallClock = DateTime.now();
-    (_recorder ??= SessionRecorder(
-      startedAt: wallClock,
-      earThreshold: thresholds.ear,
-      marThreshold: thresholds.mar,
-      calibrated: thresholds.calibrated,
-    ))
-        .add(metrics, status, wallClock);
+    if (!_guidedTest) {
+      (_recorder ??= SessionRecorder(
+        startedAt: wallClock,
+        earThreshold: thresholds.ear,
+        marThreshold: thresholds.mar,
+        calibrated: thresholds.calibrated,
+      ))
+          .add(metrics, status, wallClock);
+    }
 
     if (now - _lastHistory >= 250) {
       _lastHistory = now;

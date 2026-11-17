@@ -111,6 +111,7 @@ class _FatigueGuardAppState extends State<FatigueGuardApp> with WidgetsBindingOb
   void _syncFloating() {
     final want = vision.settings.floatingWindow &&
         vision.isMonitoring &&
+        !vision.guidedTestActive &&
         (vision.camera != null || vision.backgroundFeed);
     if (want == _autoFloating) return;
     _autoFloating = want;

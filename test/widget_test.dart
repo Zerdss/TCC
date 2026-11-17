@@ -113,8 +113,10 @@ void main() {
 
   testWidgets('teste guiado abre com explicação, tamanho e aviso de calibração', (tester) async {
     final vision = VisionController();
+    expect(vision.guidedTestActive, isFalse);
     await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: GuidedTestScreen(vision: vision)));
     expect(find.text('Teste guiado'), findsOneWidget);
+    expect(vision.guidedTestActive, isTrue); // teste guiado não entra no histórico
     expect(find.byKey(const Key('guided-needs-calibration')), findsOneWidget);
     await tester.scrollUntilVisible(find.byKey(const Key('guided-size')), 200, scrollable: find.byType(Scrollable).first);
     expect(find.text('Rápido\n12 testes'), findsOneWidget);
@@ -126,6 +128,8 @@ void main() {
     expect(find.textContaining('40 tentativas'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(vision.guidedTestActive, isFalse); // saiu do teste: histórico volta a gravar
     vision.dispose();
   });
 
